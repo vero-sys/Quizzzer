@@ -42,6 +42,34 @@ function switchView(viewName) {
   updateDashboardMetrics();
 }
 
+// --- flag Function ---
+
+let flaggedQuestions = new Set();
+
+function toggleCurrentFlag() {
+  const idx = parseInt(currentQuestionIdx, 10);
+  if (flaggedQuestions.has(idx)) {
+    flaggedQuestions.delete(idx);
+  } else {
+    flaggedQuestions.add(idx);
+  }
+  updateFlagButtonUI();
+}
+
+function updateFlagButtonUI() {
+  const btn = document.getElementById('btn-flag-q');
+  const icon = document.getElementById('flag-icon');
+  const label = document.getElementById('flag-label');
+  if (!btn) return;
+
+  const idx = parseInt(currentQuestionIdx, 10);
+  const isFlagged = flaggedQuestions.has(idx);
+  
+  btn.classList.toggle('is-flagged', isFlagged);
+  if (icon) icon.innerText = isFlagged ? '🚩' : '🏳️';
+  if (label) label.innerText = isFlagged ? 'Flagged' : 'Flag';
+}
+
 // --- Module: Quiz Library & Deck (Cloud-Synced) ---
 async function renderQuizList() {
   const container = document.getElementById('available-quiz-list');
@@ -434,9 +462,13 @@ async function deleteQuiz(quizId) {
 
 // --- Module: Quiz Runner Execution ---
 function startQuizSession(quiz, mode = "device") {
+  // Enter full distraction-free focus mode
+  document.querySelector('.app-container')?.classList.add('quiz-focus-mode');
+
   activeQuizInstance = quiz;
   currentQuizMode = mode;
   currentQuestionIdx = 0;
+  flaggedQuestions.clear();
   userAnswers = {};
 
   document.getElementById('quiz-deck-view').style.display = 'none';
@@ -478,11 +510,6 @@ function renderActiveQuestion() {
     optionsBox.appendChild(btn);
   });
 
-  const checkBtn = document.getElementById('btn-check-q');
-  if (checkBtn) {
-    checkBtn.style.display = currentQuizMode === 'paper' ? 'none' : 'inline-block';
-  }
-
   document.getElementById('btn-prev-q').style.visibility = currentQuestionIdx === 0 ? 'hidden' : 'visible';
   
   const isLast = currentQuestionIdx === total - 1;
@@ -492,6 +519,9 @@ function renderActiveQuestion() {
   const expBox = document.getElementById('active-explanation');
   expBox.style.display = 'none';
   expBox.innerText = "";
+
+  // Synchronize the flag button state for the current item
+  updateFlagButtonUI();
 }
 
 function selectOption(letter) {
@@ -522,107 +552,208 @@ function checkCurrentAnswer() {
   expBox.style.display = 'block';
 }
 
+let currentSummaryReviewItems = [];
+
 async function submitQuizAttempt() {
+  if (!activeQuizInstance || !activeQuizInstance.questions) return;
+
   const total = activeQuizInstance.questions.length;
   let score = 0;
-  const wrongQuestions = [];
+  const reviewItems = [];
+  const flaggedArray = Array.from(flaggedQuestions).map(n => Number(n));
 
-  if (currentQuizMode === 'paper') {
-    document.getElementById('quiz-active-runner').style.display = 'none';
-    document.getElementById('result-score-display').innerText = `Finished ${total} Items`;
-    renderPaperSummary(activeQuizInstance.questions);
-    document.getElementById('quiz-result-summary').style.display = 'block';
-  } else {
-    activeQuizInstance.questions.forEach((q, idx) => {
-      const userChoice = userAnswers[idx] ? userAnswers[idx].toLowerCase() : null;
-      const isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
+  activeQuizInstance.questions.forEach((q, idx) => {
+    const userChoice = userAnswers[idx];
+    const isCorrect = userChoice && q.answer && userChoice.toLowerCase() === q.answer.toLowerCase();
+    const isFlagged = flaggedQuestions.has(idx);
 
-      if (isCorrect) {
-        score++;
-      } else {
-        wrongQuestions.push({
-          ...q,
-          chosenAnswer: userChoice
-        });
-      }
-    });
-
-    const percentage = Math.round((score / total) * 100) + "%";
-    const record = {
-      id: "rec_" + Date.now(),
-      title: activeQuizInstance.title,
-      date: new Date().toISOString().split("T")[0],
-      score: `${score} / ${total}`,
-      percentage: percentage,
-      mode: "device",
-      questions: activeQuizInstance.questions,
-      userAnswers: { ...userAnswers }
-    };
-
-    try {
-      await sb.from('quiz_records').insert({
-        id: record.id,
-        title: record.title,
-        date: record.date,
-        score: record.score,
-        percentage: record.percentage,
-        mode: record.mode,
-        questions: record.questions,
-        user_answers: record.userAnswers
-      });
-    } catch (err) {
-      console.error("Cloud save failed:", err);
+    if (isCorrect) {
+      score++;
     }
 
-    const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-    records.unshift(record);
-    localStorage.setItem('quiz_records', JSON.stringify(records));
+    reviewItems.push({
+      ...q,
+      originalIndex: idx,
+      isCorrect: !!isCorrect,
+      isFlagged: !!isFlagged,
+      chosenAnswer: userChoice || null
+    });
+  });
 
-    document.getElementById('quiz-active-runner').style.display = 'none';
-    document.getElementById('result-score-display').innerText = `${score} / ${total} (${percentage})`;
-    renderSummaryMistakes(wrongQuestions);
-    document.getElementById('quiz-result-summary').style.display = 'block';
-    
-    await renderRecordsTable();
-    updateDashboardMetrics();
+  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+
+  // 1. Update score header safely
+  const scoreDisplay = document.getElementById('result-score-display') || document.getElementById('summary-score-text');
+  if (scoreDisplay) {
+    scoreDisplay.innerText = `${score} / ${total} (${pct}%)`;
   }
+
+  // 2. Prepare the attempt object
+  const record = {
+    id: "rec_" + Date.now(),
+    title: activeQuizInstance.title,
+    date: new Date().toISOString().split("T")[0],
+    score: `${score} / ${total}`,
+    percentage: `${pct}%`,
+    mode: currentQuizMode || 'device',
+    mistakesCount: total - score,
+    mistakenIndices: reviewItems.filter(i => !i.isCorrect).map(i => i.originalIndex),
+    flaggedIndices: flaggedArray,
+    questions: activeQuizInstance.questions,
+    userAnswers: userAnswers
+  };
+
+  // 3. Guarantee LocalStorage persistence FIRST
+  try {
+    const localRecords = JSON.parse(localStorage.getItem('quiz_records') || '[]');
+    localRecords.unshift(record);
+    localStorage.setItem('quiz_records', JSON.stringify(localRecords));
+    currentRecordsCache = localRecords;
+  } catch (err) {
+    console.error("Local storage record save error:", err);
+  }
+
+  // 4. Save to Supabase Cloud with fallback handling
+  try {
+    const payload = {
+      id: record.id,
+      title: record.title,
+      date: record.date,
+      score: record.score,
+      percentage: record.percentage,
+      mode: record.mode,
+      mistakes_count: record.mistakesCount,
+      mistaken_indices: record.mistakenIndices,
+      flagged_indices: record.flaggedIndices,
+      questions: record.questions,
+      user_answers: record.userAnswers
+    };
+
+    const { error: sbError } = await sb.from('quiz_records').insert(payload);
+    if (sbError) {
+      console.warn("Supabase record insert error (retrying without flagged_indices):", sbError.message);
+      // Fallback in case Supabase table doesn't have the column yet
+      delete payload.flagged_indices;
+      await sb.from('quiz_records').insert(payload);
+    }
+  } catch (err) {
+    console.warn("Cloud push failed, keeping local copy:", err);
+  }
+
+  // 5. Populate end summary screen
+  currentSummaryReviewItems = reviewItems;
+  if (typeof updateSummaryFilterPillCounts === 'function') {
+    updateSummaryFilterPillCounts(reviewItems);
+  }
+  if (typeof filterSummaryReview === 'function') {
+    filterSummaryReview('all');
+  }
+
+  // 6. Transition Runner -> Summary View
+  const runner = document.getElementById('quiz-active-runner');
+  const summary = document.getElementById('quiz-result-summary');
+  if (runner) runner.style.display = 'none';
+  if (summary) summary.style.display = 'block';
+
+  // 7. Refresh records cache and counters safely
+  try {
+    updateRecordFilterCounts(currentRecordsCache);
+    renderFilteredRecordsRows();
+  } catch (e) {
+    console.warn("UI update warning:", e);
+  }
+  updateDashboardMetrics();
 }
 
-function renderSummaryMistakes(wrongItems) {
+function updateSummaryFilterPillCounts(items) {
+  const allCount = items.length;
+  const correctCount = items.filter(i => i.isCorrect).length;
+  const incorrectCount = items.filter(i => !i.isCorrect).length;
+  const flaggedCount = items.filter(i => i.isFlagged).length;
+
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+  };
+
+  setEl('filter-count-all', allCount);
+  setEl('filter-count-correct', correctCount);
+  setEl('filter-count-incorrect', incorrectCount);
+  setEl('filter-count-flagged', flaggedCount);
+}
+
+function filterSummaryReview(filterType) {
+  // Update active pill button state
+  document.querySelectorAll('.summary-filter-pills .summary-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterType}'`));
+  });
+
+  const sourceItems = Array.isArray(currentSummaryReviewItems) ? currentSummaryReviewItems : [];
+  let filtered = sourceItems;
+
+  if (filterType === 'correct') {
+    filtered = sourceItems.filter(i => i.isCorrect);
+  } else if (filterType === 'incorrect') {
+    filtered = sourceItems.filter(i => !i.isCorrect);
+  } else if (filterType === 'flagged') {
+    filtered = sourceItems.filter(i => i.isFlagged);
+  }
+
+  renderSummaryReviewItems(filtered);
+}
+
+function renderSummaryReviewItems(items) {
   const container = document.getElementById('summary-wrong-items-container');
   const list = document.getElementById('summary-wrong-items-list');
-  const badge = document.getElementById('wrong-count-badge');
 
   if (!container || !list) return;
+
+  // 1. ALWAYS keep container visible so filter buttons never disappear
+  container.style.display = 'block';
   list.innerHTML = '';
 
-  if (wrongItems.length === 0) {
-    container.style.display = 'none';
+  // 2. Render clean empty-state placeholder instead of hiding the container
+  if (!items || items.length === 0) {
+    list.innerHTML = `
+      <div style="text-align: center; padding: 32px 16px; background: var(--surface-alt); border-radius: 16px; border: 1px dashed var(--border-subtle); margin-top: 8px;">
+        <p style="color: var(--text-muted); font-size: 0.92rem; font-weight: 600;">No questions found under this filter.</p>
+      </div>
+    `;
     return;
   }
 
-  if (badge) {
-    badge.innerText = `${wrongItems.length} Incorrect`;
-    badge.style.background = "#ffe4e6";
-    badge.style.color = "var(--red)";
-  }
-  container.style.display = 'block';
-
-  wrongItems.forEach(q => {
+  items.forEach(q => {
     const card = document.createElement('div');
-    card.className = 'review-item-card is-wrong';
+    
+    // Prevent clicks inside cards from bubbling to parent handlers
+    card.onclick = (e) => e.stopPropagation();
+
+    // Determine card styling based on correct/wrong/flagged state
+    let cardClass = 'review-item-card';
+    if (q.isFlagged) {
+      cardClass += ' is-flagged';
+    } else if (q.isCorrect) {
+      cardClass += ' is-correct';
+    } else {
+      cardClass += ' is-wrong';
+    }
+    card.className = cardClass;
 
     let optionsHtml = q.options.map(opt => {
       let extraClass = '';
       let labelTag = '';
 
-      if (q.chosenAnswer && opt.letter.toLowerCase() === q.chosenAnswer) {
-        extraClass = 'user-wrong';
-        labelTag = ' <strong>(Your Answer)</strong>';
-      }
-      if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
+      if (q.chosenAnswer && opt.letter.toLowerCase() === q.chosenAnswer.toLowerCase()) {
+        if (q.isCorrect) {
+          extraClass = 'is-answer';
+          labelTag = ' <strong>(Your Answer - Correct)</strong>';
+        } else {
+          extraClass = 'user-wrong';
+          labelTag = ' <strong>(Your Answer)</strong>';
+        }
+      } else if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
         extraClass = 'is-answer';
-        labelTag = ' <strong>(Correct)</strong>';
+        labelTag = ' <strong>(Correct Answer)</strong>';
       }
 
       return `<div class="review-opt-row ${extraClass}">
@@ -631,11 +762,24 @@ function renderSummaryMistakes(wrongItems) {
       </div>`;
     }).join('');
 
+    // Status badges
+    let badgesHtml = '';
+    if (q.isFlagged) {
+      badgesHtml += `<span class="review-item-badge badge-flagged">🚩 Flagged</span> `;
+    }
+    if (q.isCorrect) {
+      badgesHtml += `<span class="review-item-badge badge-correct">Question ${q.id} &bull; Correct</span>`;
+    } else {
+      badgesHtml += `<span class="review-item-badge badge-wrong">Question ${q.id} &bull; Incorrect</span>`;
+    }
+
     card.innerHTML = `
-      <span class="review-item-badge badge-wrong">Question ${q.id} &bull; Incorrect</span>
-      <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.question}</div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        ${badgesHtml}
+      </div>
+      <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.id}. ${q.question}</div>
       <div class="review-options-list">${optionsHtml}</div>
-      ${q.explanation ? `<div class="explanation-callout"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
+      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
     `;
     list.appendChild(card);
   });
@@ -678,7 +822,7 @@ function renderPaperSummary(questions) {
 }
 
 function exitQuizRunner() {
-  if (currentQuizMode === 'paper' && activeQuizInstance) {
+  if (currentQuizMode === 'paper' && activeQuizInstance && document.getElementById('quiz-active-runner').style.display !== 'none') {
     openPaperScoreModal();
   } else {
     finishAndReturnToLibrary();
@@ -826,11 +970,18 @@ function skipPaperScoreLogging() {
 }
 
 function finishAndReturnToLibrary() {
+  // Exit focus mode and restore sidebar, topbar, and metrics
+  document.querySelector('.app-container')?.classList.remove('quiz-focus-mode');
+
   document.getElementById('quiz-active-runner').style.display = 'none';
   document.getElementById('quiz-result-summary').style.display = 'none';
   document.getElementById('quiz-deck-view').style.display = 'block';
   activeQuizInstance = null;
+  updateDashboardMetrics();
 }
+
+let currentRecordsCache = [];
+let currentRecordsFilter = 'all';
 
 // --- Module: Quiz Records Table ---
 async function renderRecordsTable() {
@@ -855,9 +1006,10 @@ async function renderRecordsTable() {
       date: r.date,
       score: r.score,
       percentage: r.percentage,
-      mode: r.mode,
+      mode: r.mode || 'device',
       mistakesCount: r.mistakes_count,
       mistakenIndices: r.mistaken_indices,
+      flaggedIndices: r.flagged_indices || r.flaggedIndices || [],
       questions: r.questions,
       userAnswers: r.user_answers
     }));
@@ -868,15 +1020,54 @@ async function renderRecordsTable() {
     records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
   }
 
-  tbody.innerHTML = "";
+  currentRecordsCache = records;
+  updateRecordFilterCounts(records);
+  renderFilteredRecordsRows();
   updateDashboardMetrics();
+}
 
-  if (records.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 18px;">No attempts logged yet.</td></tr>`;
+function updateRecordFilterCounts(records) {
+  const safeRecords = Array.isArray(records) ? records : [];
+  const total = safeRecords.length;
+  const deviceCount = safeRecords.filter(r => (r.mode || 'device') === 'device').length;
+  const paperCount = safeRecords.filter(r => r.mode === 'paper').length;
+
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+  };
+
+  setEl('record-count-all', total);
+  setEl('record-count-device', deviceCount);
+  setEl('record-count-paper', paperCount);
+}
+
+function filterRecordsTable(filterMode) {
+  currentRecordsFilter = filterMode;
+
+  document.querySelectorAll('.records-filter-pills .summary-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterMode}'`));
+  });
+
+  renderFilteredRecordsRows();
+}
+
+function renderFilteredRecordsRows() {
+  const tbody = document.getElementById('records-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let items = currentRecordsCache;
+  if (currentRecordsFilter !== 'all') {
+    items = currentRecordsCache.filter(r => (r.mode || 'device') === currentRecordsFilter);
+  }
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No records found under this filter.</td></tr>`;
     return;
   }
 
-  records.forEach((r, idx) => {
+  items.forEach((r, idx) => {
     const recordId = r.id || `rec_${idx}`;
     const row = document.createElement('tr');
     
@@ -885,8 +1076,12 @@ async function renderRecordsTable() {
       openFullAttemptReview(recordId);
     };
 
+    const modeBadge = r.mode === 'paper' 
+      ? `<span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; background: var(--surface-alt); border: 1px solid var(--border-subtle); color: var(--text-muted); margin-left: 6px;">Paper</span>`
+      : '';
+
     row.innerHTML = `
-      <td><strong>${r.title}</strong></td>
+      <td><strong>${r.title}</strong> ${modeBadge}</td>
       <td>${r.date}</td>
       <td>${r.score}</td>
       <td><span style="color: var(--primary); font-weight: 800;">${r.percentage}</span></td>
@@ -900,6 +1095,9 @@ async function renderRecordsTable() {
   });
 }
 
+let currentActiveAttemptRecord = null;
+let currentAttemptFilter = 'all';
+
 function openFullAttemptReview(recordId) {
   const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
   const record = records.find(r => r.id === recordId);
@@ -908,48 +1106,114 @@ function openFullAttemptReview(recordId) {
     return;
   }
 
-  const isPaperMode = record.mode === 'paper';
+  currentActiveAttemptRecord = record;
 
   document.getElementById('review-panel-title').innerText = `Review: ${record.title}`;
   document.getElementById('review-panel-subtitle').innerText = `Attempted on ${record.date}`;
   document.getElementById('review-score-text').innerText = record.score;
   document.getElementById('review-accuracy-text').innerText = record.percentage;
 
-  const container = document.getElementById('review-all-questions-list');
-  container.innerHTML = '';
+  // Calculate Pill Counts
+  const isPaperMode = record.mode === 'paper';
+  const total = record.questions.length;
+  const rawFlags = record.flaggedIndices || record.flagged_indices || [];
+  const flaggedSet = new Set(rawFlags.map(n => Number(n)));
+  
+  let correctCount = 0;
+  let mistakesCount = 0;
 
   record.questions.forEach((q, idx) => {
-    const card = document.createElement('div');
+    let isCorrect = false;
+    if (isPaperMode) {
+      const isMistake = record.mistakenIndices 
+        ? record.mistakenIndices.includes(idx) 
+        : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
+      isCorrect = !isMistake;
+    } else {
+      const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
+      isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
+    }
+    if (isCorrect) correctCount++;
+    else mistakesCount++;
+  });
+
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+  };
+
+  setEl('review-count-all', total);
+  setEl('review-count-correct', correctCount);
+  setEl('review-count-mistakes', mistakesCount);
+  setEl('review-count-flagged', flaggedSet.size);
+
+  filterAttemptReview('all');
+  switchView('review');
+}
+
+function filterAttemptReview(filterType) {
+  currentAttemptFilter = filterType;
+
+  // Highlight the active pill
+  document.querySelectorAll('.attempt-review-filter-pills .summary-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterType}'`));
+  });
+
+  renderAttemptReviewCards();
+}
+
+function renderAttemptReviewCards() {
+  const record = currentActiveAttemptRecord;
+  const container = document.getElementById('review-all-questions-list');
+  if (!record || !container) return;
+
+  container.innerHTML = '';
+  const isPaperMode = record.mode === 'paper';
+  const rawFlags = record.flaggedIndices || record.flagged_indices || [];
+  const flaggedSet = new Set(rawFlags.map(n => Number(n)));
+
+  let renderedCount = 0;
+
+  record.questions.forEach((q, idx) => {
+    const isFlagged = flaggedSet.has(idx);
+    let isCorrect = false;
 
     if (isPaperMode) {
       const isMistake = record.mistakenIndices 
         ? record.mistakenIndices.includes(idx) 
         : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
+      isCorrect = !isMistake;
+    } else {
+      const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
+      isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
+    }
 
-      card.className = `review-item-card ${isMistake ? 'is-wrong' : 'is-correct'}`;
+    // Filter matching check
+    if (currentAttemptFilter === 'correct' && !isCorrect) return;
+    if (currentAttemptFilter === 'mistakes' && isCorrect) return;
+    if (currentAttemptFilter === 'flagged' && !isFlagged) return;
 
-      let optionsHtml = q.options.map(opt => {
+    renderedCount++;
+
+    const card = document.createElement('div');
+    let cardClass = 'review-item-card';
+    if (isFlagged) cardClass += ' is-flagged';
+    else if (isCorrect) cardClass += ' is-correct';
+    else cardClass += ' is-wrong';
+    card.className = cardClass;
+
+    let optionsHtml = '';
+    if (isPaperMode) {
+      optionsHtml = q.options.map(opt => {
         const isAnswer = q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase();
         return `<div class="review-opt-row ${isAnswer ? 'is-answer' : 'paper-neutral'}">
           <span>${opt.letter.toUpperCase()}.</span>
           <span>${opt.text}${isAnswer ? ' <strong>(Correct Key)</strong>' : ''}</span>
         </div>`;
       }).join('');
-
-      card.innerHTML = `
-        <span class="review-item-badge ${isMistake ? 'badge-wrong' : 'badge-correct'}">
-          Question ${idx + 1} &bull; ${isMistake ? '❌ Marked Wrong' : '✓ Correct'}
-        </span>
-        <div style="font-weight: 800; font-size: 1rem; margin-bottom: 8px;">${q.id || idx + 1}. ${q.question}</div>
-        <div class="review-options-list">${optionsHtml}</div>
-        ${q.explanation ? `<div class="explanation-callout"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
-      `;
     } else {
       const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
-      const isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
-      card.className = `review-item-card ${isCorrect ? 'is-correct' : 'is-wrong'}`;
-
-      let optionsHtml = q.options.map(opt => {
+      optionsHtml = q.options.map(opt => {
         let extraClass = '';
         let tag = '';
 
@@ -966,21 +1230,38 @@ function openFullAttemptReview(recordId) {
           <span>${opt.text}${tag}</span>
         </div>`;
       }).join('');
-
-      card.innerHTML = `
-        <span class="review-item-badge ${isCorrect ? 'badge-correct' : 'badge-wrong'}">
-          Question ${idx + 1} &bull; ${isCorrect ? 'Correct' : 'Mistake'}
-        </span>
-        <div style="font-weight: 800; font-size: 1rem; margin-bottom: 8px;">${q.id || idx + 1}. ${q.question}</div>
-        <div class="review-options-list">${optionsHtml}</div>
-        ${q.explanation ? `<div class="explanation-callout"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
-      `;
     }
+
+    let badgesHtml = '';
+    if (isFlagged) {
+      badgesHtml += `<span class="review-item-badge badge-flagged">🚩 Flagged</span> `;
+    }
+    if (isCorrect) {
+      badgesHtml += `<span class="review-item-badge badge-correct">Question ${idx + 1} &bull; Correct</span>`;
+    } else {
+      badgesHtml += `<span class="review-item-badge badge-wrong">Question ${idx + 1} &bull; Mistake</span>`;
+    }
+
+    card.innerHTML = `
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        ${badgesHtml}
+      </div>
+      <div style="font-weight: 800; font-size: 1rem; margin-bottom: 8px;">${q.id || idx + 1}. ${q.question}</div>
+      <div class="review-options-list">${optionsHtml}</div>
+      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
+    `;
 
     container.appendChild(card);
   });
 
-  switchView('review');
+  // Empty state if 0 items match the active pill
+  if (renderedCount === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 32px 16px; background: var(--surface-alt); border-radius: 16px; border: 1px dashed var(--border-subtle);">
+        <p style="color: var(--text-muted); font-size: 0.92rem; font-weight: 600;">No questions found under this filter.</p>
+      </div>
+    `;
+  }
 }
 
 function handleDeleteRecordClick(recordId, index) {
@@ -1217,12 +1498,7 @@ function showStatus(msg, type) {
 }
 
 // --- Module: Manual Quiz Creator & Editor ---
-let questionCounter = 0;
-
 function initManualCreator() {
-  const container = document.getElementById("creator-questions-container");
-  if (!container) return;
-  
   populateEditQuizDropdown();
   startFreshQuizCreation();
 }
@@ -1232,7 +1508,7 @@ function populateEditQuizDropdown() {
   if (!dropdown) return;
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  dropdown.innerHTML = `<option value="">-- Choose a quiz to load and edit --</option>`;
+  dropdown.innerHTML = `<option value="">-- Choose a quiz to load --</option>`;
 
   stored.forEach(quiz => {
     const opt = document.createElement("option");
@@ -1243,60 +1519,39 @@ function populateEditQuizDropdown() {
 }
 
 function startFreshQuizCreation() {
-  const editingIdInput = document.getElementById("editing-quiz-id");
-  if (editingIdInput) editingIdInput.value = "";
-  
   const titleInput = document.getElementById("create-quiz-title");
   if (titleInput) titleInput.value = "";
   
-  // Clean initialization (No undefined variable crash)
   const subjectInput = document.getElementById("create-quiz-subject");
   if (subjectInput) subjectInput.value = "General";
-  
-  const heading = document.getElementById("creator-heading");
-  if (heading) heading.innerText = "Manual Quiz Creator";
-  
-  const saveBtn = document.getElementById("btn-save-creator");
-  if (saveBtn) saveBtn.innerText = "Save & Open in Library";
-  
-  const resetBtn = document.getElementById("btn-creator-reset");
-  if (resetBtn) resetBtn.style.display = "none";
-  
-  const selectEdit = document.getElementById("select-edit-quiz");
-  if (selectEdit) selectEdit.value = "";
 
   const container = document.getElementById("creator-questions-container");
   if (container) {
     container.innerHTML = "";
-    questionCounter = 0;
-    addQuestionBlock();
+    addQuestionBlock("creator-questions-container");
   }
 }
 
-function loadQuizForEditing(explicitId = null) {
-  const quizId = explicitId || document.getElementById("select-edit-quiz").value;
-  if (!quizId) return;
+function loadQuizForEditing(quizId) {
+  const editArea = document.getElementById("edit-editor-area");
+  if (!quizId) {
+    if (editArea) editArea.style.display = "none";
+    return;
+  }
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
   const quiz = stored.find(q => q.id === quizId);
   if (!quiz) return;
 
   document.getElementById("editing-quiz-id").value = quiz.id;
-  document.getElementById("create-quiz-title").value = quiz.title;
-  
-  const subjectInput = document.getElementById("create-quiz-subject");
-  if (subjectInput) subjectInput.value = quiz.subject || "General";
+  document.getElementById("edit-quiz-title").value = quiz.title;
+  document.getElementById("edit-quiz-subject").value = quiz.subject || "General";
 
-  document.getElementById("creator-heading").innerText = `Editing: ${quiz.title}`;
-  document.getElementById("btn-save-creator").innerText = "Update Quiz";
-  document.getElementById("btn-creator-reset").style.display = "inline-block";
-
-  const container = document.getElementById("creator-questions-container");
+  const container = document.getElementById("editor-questions-container");
   container.innerHTML = "";
-  questionCounter = 0;
 
   quiz.questions.forEach(q => {
-    addQuestionBlock({
+    addQuestionBlock("editor-questions-container", {
       question: q.question,
       options: q.options,
       answer: q.answer,
@@ -1304,22 +1559,15 @@ function loadQuizForEditing(explicitId = null) {
     });
   });
 
-  const statusBox = document.getElementById("create-status");
-  if (statusBox) {
-    statusBox.className = "status-box success";
-    statusBox.innerText = `Loaded "${quiz.title}" for editing.`;
-    setTimeout(() => { statusBox.style.display = "none"; }, 3000);
-  }
+  if (editArea) editArea.style.display = "block";
 }
 
-function addQuestionBlock(data = null) {
-  questionCounter++;
-  const container = document.getElementById("creator-questions-container");
+function addQuestionBlock(targetContainerId, data = null) {
+  const container = document.getElementById(targetContainerId);
   if (!container) return;
 
   const block = document.createElement("div");
   block.className = "create-question-card";
-  block.id = `q-card-${questionCounter}`;
 
   const promptVal = data ? data.question : "";
   const expVal = data ? (data.explanation || "") : "";
@@ -1331,25 +1579,38 @@ function addQuestionBlock(data = null) {
 
   block.innerHTML = `
     <div class="create-card-header">
-      <strong style="color: var(--primary);">Question ${questionCounter}</strong>
-      <button type="button" class="btn btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="removeQuestionBlock(${questionCounter})">Remove</button>
+      <strong>Question</strong>
+      <button type="button" class="btn btn-danger" style="padding: 4px 12px; font-size: 0.78rem;" onclick="this.closest('.create-question-card').remove(); renumberQuestionBlocks('${targetContainerId}')">Remove</button>
     </div>
 
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom: 14px;">
       <input type="text" class="q-input-prompt" placeholder="Enter question prompt..." value="${promptVal.replace(/"/g, '&quot;')}" />
     </div>
 
+    <!-- 2x2 Clean Option Grid with Embedded Letter Badges -->
     <div class="options-input-grid">
-      <div class="input-with-label"><span>A</span><input type="text" class="opt-val" data-opt="a" placeholder="Option A text" value="${optA.replace(/"/g, '&quot;')}" /></div>
-      <div class="input-with-label"><span>B</span><input type="text" class="opt-val" data-opt="b" placeholder="Option B text" value="${optB.replace(/"/g, '&quot;')}" /></div>
-      <div class="input-with-label"><span>C</span><input type="text" class="opt-val" data-opt="c" placeholder="Option C text" value="${optC.replace(/"/g, '&quot;')}" /></div>
-      <div class="input-with-label"><span>D</span><input type="text" class="opt-val" data-opt="d" placeholder="Option D text" value="${optD.replace(/"/g, '&quot;')}" /></div>
+      <div class="input-with-label">
+        <span>A</span>
+        <input type="text" class="opt-val" data-opt="a" placeholder="Option A" value="${optA.replace(/"/g, '&quot;')}" />
+      </div>
+      <div class="input-with-label">
+        <span>B</span>
+        <input type="text" class="opt-val" data-opt="b" placeholder="Option B" value="${optB.replace(/"/g, '&quot;')}" />
+      </div>
+      <div class="input-with-label">
+        <span>C</span>
+        <input type="text" class="opt-val" data-opt="c" placeholder="Option C" value="${optC.replace(/"/g, '&quot;')}" />
+      </div>
+      <div class="input-with-label">
+        <span>D</span>
+        <input type="text" class="opt-val" data-opt="d" placeholder="Option D" value="${optD.replace(/"/g, '&quot;')}" />
+      </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: start;">
+    <div style="display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: start; margin-top: 14px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label>Correct Answer</label>
-        <select class="correct-opt-select" style="padding: 9px; border: 1px solid var(--border-subtle); border-radius: 6px; width: 100%; outline: none;">
+        <select class="correct-opt-select" style="padding: 10px 14px; border-radius: var(--radius-input);">
           <option value="a" ${correctOpt === 'a' ? 'selected' : ''}>Option A</option>
           <option value="b" ${correctOpt === 'b' ? 'selected' : ''}>Option B</option>
           <option value="c" ${correctOpt === 'c' ? 'selected' : ''}>Option C</option>
@@ -1357,41 +1618,45 @@ function addQuestionBlock(data = null) {
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
-        <label>Rationale / Explanation (Optional)</label>
-        <input type="text" class="q-input-explanation" placeholder="Why this option is correct..." value="${expVal.replace(/"/g, '&quot;')}" />
+        <label>Rationale (Optional)</label>
+        <input type="text" class="q-input-explanation" placeholder="Rationale explanation..." value="${expVal.replace(/"/g, '&quot;')}" />
       </div>
     </div>
   `;
+
   container.appendChild(block);
-  renumberQuestionBlocks();
+  renumberQuestionBlocks(targetContainerId);
 }
 
-function removeQuestionBlock(id) {
-  const card = document.getElementById(`q-card-${id}`);
-  if (card) card.remove();
-  renumberQuestionBlocks();
-}
-
-function renumberQuestionBlocks() {
-  const cards = document.querySelectorAll(".create-question-card");
+function renumberQuestionBlocks(targetContainerId) {
+  const container = document.getElementById(targetContainerId);
+  if (!container) return;
+  const cards = container.querySelectorAll(".create-question-card");
   cards.forEach((card, index) => {
     const headerTitle = card.querySelector(".create-card-header strong");
     if (headerTitle) headerTitle.innerText = `Question ${index + 1}`;
   });
 }
 
-async function saveManualQuiz() {
-  const titleInput = document.getElementById("create-quiz-title");
-  const title = titleInput.value.trim() || "Untitled Quiz";
-  const subjectInput = document.getElementById("create-quiz-subject");
-  const subject = (subjectInput?.value || "").trim() || "General";
-  const cards = document.querySelectorAll(".create-question-card");
-  const statusBox = document.getElementById("create-status");
-  const editingId = document.getElementById("editing-quiz-id").value;
+async function saveManualQuiz(mode = 'create') {
+  const isCreate = mode === 'create';
+  const prefix = isCreate ? 'create' : 'edit';
+  const containerId = isCreate ? 'creator-questions-container' : 'editor-questions-container';
+  const statusBox = document.getElementById(`${prefix}-status`);
+
+  const title = (document.getElementById(`${prefix}-quiz-title`)?.value || "").trim() || "Untitled Quiz";
+  const subject = (document.getElementById(`${prefix}-quiz-subject`)?.value || "").trim() || "General";
+  const editingId = isCreate ? null : document.getElementById("editing-quiz-id").value;
+
+  const container = document.getElementById(containerId);
+  const cards = container ? container.querySelectorAll(".create-question-card") : [];
 
   if (cards.length === 0) {
-    statusBox.className = "status-box error";
-    statusBox.innerText = "Please add at least one question before saving.";
+    if (statusBox) {
+      statusBox.className = "status-box error";
+      statusBox.innerText = "Please add at least one question before saving.";
+      statusBox.style.display = "block";
+    }
     return;
   }
 
@@ -1410,10 +1675,7 @@ async function saveManualQuiz() {
     optInputs.forEach(input => {
       const val = input.value.trim();
       if (!val) hasIncomplete = true;
-      options.push({
-        letter: input.getAttribute("data-opt"),
-        text: val
-      });
+      options.push({ letter: input.getAttribute("data-opt"), text: val });
     });
 
     parsedQuestions.push({
@@ -1426,8 +1688,11 @@ async function saveManualQuiz() {
   });
 
   if (hasIncomplete) {
-    statusBox.className = "status-box error";
-    statusBox.innerText = "Please fill in all question prompts and their 4 choices.";
+    if (statusBox) {
+      statusBox.className = "status-box error";
+      statusBox.innerText = "Please fill in all question prompts and all 4 choices.";
+      statusBox.style.display = "block";
+    }
     return;
   }
 
@@ -1464,12 +1729,23 @@ async function saveManualQuiz() {
   }
   localStorage.setItem("quizzes", JSON.stringify(stored));
 
-  startFreshQuizCreation();
   populateEditQuizDropdown();
   await renderQuizList();
   updateDashboardMetrics();
-  switchView("take");
+
+  if (isCreate) {
+    startFreshQuizCreation();
+    switchView("take");
+  } else {
+    if (statusBox) {
+      statusBox.className = "status-box success";
+      statusBox.innerText = `Changes saved successfully!`;
+      statusBox.style.display = "block";
+      setTimeout(() => { statusBox.style.display = "none"; }, 3000);
+    }
+  }
 }
+
 
 // --- Module: Mobile Sidebar Navigation ---
 function toggleSidebar() {
@@ -1637,6 +1913,82 @@ async function pushLocalDataToSupabase() {
   await renderRecordsTable();
   await renderQuizList();
   updateDashboardMetrics();
+}
+
+// --- Cloud Download / Overwrite Local Storage ---
+async function pullCloudDataToLocalStorage() {
+  const proceed = confirm(
+    "⚠️ Replace Local Data with Cloud?\n\n" +
+    "This will overwrite all local quizzes and records on this browser with the data stored in your Supabase cloud database.\n\n" +
+    "Do you want to continue?"
+  );
+
+  if (!proceed) return;
+
+  try {
+    // 1. Fetch decks from Supabase
+    const { data: cloudDecks, error: decksError } = await sb
+      .from('quiz_decks')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('uploaded_at', { ascending: false });
+
+    if (decksError) throw decksError;
+
+    // 2. Fetch records from Supabase
+    const { data: cloudRecords, error: recordsError } = await sb
+      .from('quiz_records')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (recordsError) throw recordsError;
+
+    // 3. Format decks to local structure
+    const formattedDecks = (cloudDecks || []).map((q, idx) => ({
+      id: q.id,
+      title: q.title,
+      subject: q.subject || 'General',
+      sortOrder: q.sort_order ?? idx,
+      uploadedAt: q.uploaded_at,
+      totalQuestions: q.total_questions,
+      questions: q.questions
+    }));
+
+    // 4. Format records to local structure
+    const formattedRecords = (cloudRecords || []).map(r => ({
+      id: r.id,
+      title: r.title,
+      date: r.date,
+      score: r.score,
+      percentage: r.percentage,
+      mode: r.mode || 'device',
+      mistakesCount: r.mistakes_count,
+      mistakenIndices: r.mistaken_indices,
+      flaggedIndices: r.flagged_indices || [],
+      questions: r.questions,
+      userAnswers: r.user_answers
+    }));
+
+    // 5. Overwrite local caches completely
+    localStorage.setItem('quizzes', JSON.stringify(formattedDecks));
+    localStorage.setItem('quiz_records', JSON.stringify(formattedRecords));
+    cachedDecks = formattedDecks;
+
+    // 6. Refresh views, dropdowns, and stats
+    await renderQuizList();
+    await renderRecordsTable();
+    populateEditQuizDropdown();
+    updateDashboardMetrics();
+
+    alert(
+      ` Cloud sync successful!\n\n` +
+      `• Quizzes restored: ${formattedDecks.length}\n` +
+      `• Records restored: ${formattedRecords.length}`
+    );
+  } catch (err) {
+    console.error("Cloud pull failed:", err);
+    alert("Failed to pull from cloud: " + err.message);
+  }
 }
 
 function initBackgroundRunner() {
@@ -1824,4 +2176,38 @@ function toggleSubjectCollapse(safeSubjId) {
     if (pillSpan) pillSpan.innerText = countText;
     if (arrow) arrow.innerText = '▼';
   }
+}
+
+function copyAIPromptTemplate(btnElement) {
+  const promptText = `Please generate a quiz about [TOPIC/DOCUMENT]. 
+Strictly format the output exactly as follows:
+
+1. [Question text here]
+a. [Option A]
+b. [Option B]
+c. [Option C]
+d. [Option D]
+
+2. [Question text here]
+a. [Option A]
+b. [Option B]
+c. [Option C]
+d. [Option D]
+
+Answer Key:
+1. a - [Explanation / rationale]
+2. b - [Explanation / rationale]`;
+
+  navigator.clipboard.writeText(promptText).then(() => {
+    const originalHTML = btnElement.innerHTML;
+    btnElement.classList.add('copied');
+    btnElement.innerHTML = `<span>✓</span> <span>Copied to Clipboard!</span>`;
+
+    setTimeout(() => {
+      btnElement.classList.remove('copied');
+      btnElement.innerHTML = originalHTML;
+    }, 2200);
+  }).catch(err => {
+    console.error("Clipboard copy failed:", err);
+  });
 }

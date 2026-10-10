@@ -1,23 +1,23 @@
 /* ==========================================================================
-   DONEZO SAAS DASHBOARD THEME (EMERALD & WARM SLATE)
+   1. DESIGN TOKENS & ROOT PALETTE (DONEZO SLATE BLUE)
    ========================================================================== */
 
 :root {
-  /* Brand Palette */
-  --primary: #1b3b36;
-  --primary-light: #2d5a53;
-  --accent-green: #10b981;
-  --accent-mint: #e8f5e9;
-  --page-bg: #ecefe9;
+  /* Brand Palette - Deep Navy & Royal Blue */
+  --primary: #1e3a8a;          /* Deep classic navy / royal */
+  --primary-light: #2563eb;    /* Vibrant electric blue for hovers & focus */
+  --accent-green: #3b82f6;     /* Accent sky blue */
+  --accent-mint: #eff6ff;      /* Very soft ice-blue tint for pills & badges */
+  --page-bg: #f1f5f9;          /* Cool crisp slate background */
   --surface: #ffffff;
-  --surface-alt: #f8faf9;
+  --surface-alt: #f8fafc;
 
   /* Neutral Borders & Dividers */
-  --border-subtle: #e5e8e5;
-  --border-card: #eef1ee;
-  
+  --border-subtle: #e2e8f0;
+  --border-card: #edf2f7;
+
   /* Typography */
-  --text-main: #1f2937;
+  --text-main: #1e293b;
   --text-header: #0f172a;
   --text-muted: #64748b;
   --text-light: #94a3b8;
@@ -34,9 +34,13 @@
   --radius-pill: 9999px;
   --radius-input: 14px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 4px 20px rgba(27, 59, 54, 0.05);
-  --shadow-app: 0 12px 40px rgba(0, 0, 0, 0.07);
+  --shadow-card: 0 4px 20px rgba(30, 58, 138, 0.06);
+  --shadow-app: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
+
+/* ==========================================================================
+   2. GLOBAL RESETS & APP CONTAINER
+   ========================================================================== */
 
 * {
   box-sizing: border-box;
@@ -55,7 +59,7 @@ body {
   padding: 24px;
 }
 
-/* Outer Floating App Container Shell */
+/* Outer Floating Shell */
 .app-container {
   width: 100%;
   max-width: 1440px;
@@ -68,9 +72,51 @@ body {
   position: relative;
 }
 
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-alt);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.view-panel {
+  display: none;
+  padding: 32px 36px;
+  width: 100%;
+}
+
+.view-panel.active {
+  display: block !important;
+}
+
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+h3 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-header);
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
 /* ==========================================================================
-   SIDEBAR NAVIGATION
+   3. SIDEBAR NAVIGATION
    ========================================================================== */
+
 aside {
   width: 250px;
   background: var(--surface);
@@ -184,17 +230,13 @@ aside h2 {
   box-shadow: none;
 }
 
-/* ==========================================================================
-   MAIN WORKSPACE & TOP BAR
-   ========================================================================== */
-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-alt);
-  overflow-y: auto;
-  min-width: 0;
+.sidebar-backdrop {
+  display: none;
 }
+
+/* ==========================================================================
+   4. TOP WORKSPACE & SEARCH BAR
+   ========================================================================== */
 
 .top-action-bar {
   display: flex;
@@ -251,42 +293,10 @@ main {
   padding: 2px 6px;
 }
 
-/* Panels */
-.view-panel {
-  display: none;
-  padding: 32px 36px;
-  width: 100%;
-}
-
-.view-panel.active {
-  display: block !important;
-}
-
-.panel-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-h3 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--text-header);
-  letter-spacing: -0.5px;
-}
-
-.subtitle {
-  color: var(--text-muted);
-  font-size: 0.92rem;
-  margin-top: 4px;
-}
-
 /* ==========================================================================
-   METRIC STAT CARDS (DESKTOP)
+   5. METRIC STAT CARDS
    ========================================================================== */
+
 .stats-banner-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -377,8 +387,9 @@ h3 {
 }
 
 /* ==========================================================================
-   SUBJECT FRAMES & QUIZ CARDS
+   6. SUBJECT FRAMES & QUIZ DECK CARDS (DESKTOP)
    ========================================================================== */
+
 .subject-frame {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
@@ -433,7 +444,7 @@ h3 {
   flex-direction: column;
   gap: 12px;
   transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
-  overflow: hidden;
+  overflow: visible;
   max-height: 2500px;
   opacity: 1;
 }
@@ -441,12 +452,14 @@ h3 {
 .subject-frame.is-collapsed .subject-quiz-list {
   max-height: 0 !important;
   opacity: 0 !important;
+  overflow: hidden !important;
 }
 
 .subject-frame.is-collapsed .subject-toggle-arrow {
   transform: rotate(-90deg);
 }
 
+/* Desktop: Single clean horizontal row */
 .quiz-card {
   display: flex;
   align-items: center;
@@ -490,7 +503,7 @@ h3 {
   flex-shrink: 0;
 }
 
-/* Card Action Dropdown Menu */
+/* Dropdown Menu inside Card */
 .card-menu-container {
   position: relative;
   display: inline-block;
@@ -514,14 +527,16 @@ h3 {
   display: none;
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
+  top: auto;
   background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  min-width: 150px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+  min-width: 170px;
+  width: max-content;
   padding: 6px;
-  z-index: 50;
+  z-index: 999;
   flex-direction: column;
   gap: 2px;
 }
@@ -540,6 +555,7 @@ h3 {
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .card-menu-dropdown button:hover {
@@ -555,9 +571,9 @@ h3 {
 }
 
 /* ==========================================================================
-   BUTTONS & FORM INPUTS
+   7. BUTTONS, FORMS & DROPZONE
    ========================================================================== */
-   
+
 .btn {
   padding: 9px 18px;
   background: var(--primary);
@@ -571,6 +587,7 @@ h3 {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  transition: all 0.15s ease;
 }
 
 .btn-secondary {
@@ -579,10 +596,18 @@ h3 {
   border: 1px solid var(--border-subtle);
 }
 
+.btn-secondary:hover {
+  background: var(--surface-alt);
+}
+
 .btn-danger {
   background: var(--red);
   color: #fff;
   border-color: var(--red);
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
 }
 
 .form-group {
@@ -623,48 +648,368 @@ select {
   cursor: pointer;
 }
 
-/* Modals */
-.modal-overlay {
+/* Status message alert boxes */
+.status-box {
   display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
 }
 
-.modal-content {
-  background: #fff;
-  width: 100%;
-  max-width: 480px;
-  padding: 32px;
-  border-radius: var(--radius-card);
+.status-box.success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
 }
 
-.mode-selection-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+.status-box.error {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid #fecaca;
 }
-
-.mode-card-btn {
-  background: #fff;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  padding: 24px 16px;
-  cursor: pointer;
-  text-align: center;
-}
-
-.mobile-header { display: none !important; }
-.sidebar-backdrop { display: none; }
 
 /* ==========================================================================
-   QUIZ RECORDS TABLE (DONEZO EXECUTIVE THEME)
+   8. FILTER PILL SYSTEM (RECORDS & SUMMARIES)
    ========================================================================== */
+
+.summary-filter-pills,
+.records-filter-pills,
+.attempt-review-filter-pills {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.summary-pill:hover {
+  background: var(--surface);
+  border-color: var(--primary-light);
+  color: var(--text-header);
+}
+
+.summary-pill.active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.summary-pill .pill-count {
+  font-size: 0.75rem;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+}
+
+.summary-pill.active .pill-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   9. QUIZ RUNNER & IMMERSIVE FOCUS MODE
+   ========================================================================== */
+
+#active-options-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  width: 100% !important;
+  margin: 20px 0 !important;
+}
+
+.option-select-btn {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  text-align: left !important;
+  gap: 14px !important;
+  padding: 14px 18px !important;
+  background: var(--surface) !important;
+  border: 1.5px solid var(--border-card) !important;
+  border-radius: var(--radius-pill) !important;
+  color: var(--text-header) !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: var(--shadow-sm) !important;
+  box-sizing: border-box !important;
+}
+
+.option-select-btn:hover {
+  border-color: var(--primary-light) !important;
+  background: var(--surface-alt) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.option-select-btn strong {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: var(--surface-alt) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--primary) !important;
+  font-weight: 800 !important;
+  font-size: 0.85rem !important;
+  flex-shrink: 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.option-select-btn span {
+  flex: 1 !important;
+  line-height: 1.4 !important;
+}
+
+.option-select-btn.selected {
+  background: var(--accent-mint) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+.option-select-btn.selected strong {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.option-select-btn.paper-mode {
+  cursor: default !important;
+  border-style: dashed !important;
+}
+
+.option-select-btn.paper-mode:hover {
+  transform: none !important;
+  border-color: var(--border-card) !important;
+  background: var(--surface) !important;
+}
+
+/* Flag question toggled state */
+#btn-flag-q.is-flagged {
+  background: var(--amber-bg) !important;
+  border-color: var(--amber) !important;
+  color: #b45309 !important;
+  font-weight: 800 !important;
+}
+
+/* Distraction-Free Runner Shell */
+.app-container.quiz-focus-mode aside,
+.app-container.quiz-focus-mode .top-action-bar,
+.app-container.quiz-focus-mode .panel-header-row,
+.app-container.quiz-focus-mode .stats-banner-grid {
+  display: none !important;
+}
+
+.app-container.quiz-focus-mode main {
+  background: var(--page-bg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 40px 20px !important;
+  width: 100% !important;
+}
+
+.app-container.quiz-focus-mode #view-take {
+  max-width: 860px !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+.app-container.quiz-focus-mode #quiz-active-runner,
+.app-container.quiz-focus-mode #quiz-result-summary {
+  width: 100% !important;
+}
+
+/* ==========================================================================
+   10. ATTEMPT REVIEW & DEEP-DIVE CARDS
+   ========================================================================== */
+
+.review-item-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 14px;
+}
+
+.review-item-card.is-wrong {
+  border-left: 5px solid var(--red);
+}
+
+.review-item-card.is-correct {
+  border-left: 5px solid #2563eb !important;
+}
+
+.review-item-card.is-flagged {
+  border-left: 5px solid var(--amber) !important;
+  background: #fffdf5 !important;
+}
+
+.review-item-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 10px;
+}
+
+.badge-wrong {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.badge-correct {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+}
+
+.badge-flagged {
+  background: var(--amber-bg) !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a !important;
+}
+
+.badge-paper {
+  background: var(--surface-alt);
+  color: var(--text-header);
+}
+
+.review-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.review-opt-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--surface-alt);
+  font-size: 0.88rem;
+}
+
+.review-opt-row.is-answer {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  font-weight: 700 !important;
+}
+
+.review-opt-row.user-wrong {
+  background: var(--red-bg);
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   11. CREATOR & EDITOR QUESTION CARDS
+   ========================================================================== */
+
+.create-question-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.create-question-card:focus-within {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-sm);
+  background: #ffffff;
+}
+
+.create-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.create-card-header strong {
+  font-size: 1rem;
+  color: var(--primary);
+  font-weight: 800;
+}
+
+/* 2x2 Grid on Desktop */
+.options-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin: 14px 0;
+}
+
+/* Pill Input with Letter Badge */
+.input-with-label {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid var(--border-card);
+  border-radius: var(--radius-pill);
+  padding: 4px 14px 4px 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-with-label:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input-with-label span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--primary);
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.input-with-label input {
+  border: none !important;
+  background: transparent !important;
+  padding: 8px 0 !important;
+  font-size: 0.92rem !important;
+  width: 100%;
+  outline: none !important;
+}
+
+/* ==========================================================================
+   12. QUIZ RECORDS TABLE
+   ========================================================================== */
+
 .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -675,7 +1020,7 @@ select {
 table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 10px; /* Floating pill rows */
+  border-spacing: 0 10px;
 }
 
 th {
@@ -723,78 +1068,134 @@ td:last-child {
   border-radius: 0 14px 14px 0;
 }
 
-/* Review Mode Question Cards */
-.review-item-card {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+/* ==========================================================================
+   13. MODALS
+   ========================================================================== */
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
   padding: 20px;
-  margin-bottom: 14px;
 }
 
-.review-item-card.is-wrong {
-  border-left: 5px solid var(--red);
+.modal-content {
+  background: #fff;
+  width: 100%;
+  max-width: 480px;
+  padding: 32px;
+  border-radius: var(--radius-card);
 }
 
-.review-item-card.is-correct {
-  border-left: 5px solid var(--accent-green);
+.mode-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
 
-.review-item-badge {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  margin-bottom: 10px;
-}
-
-.badge-wrong {
-  background: var(--red-bg);
-  color: var(--red);
-}
-
-.badge-correct {
-  background: var(--accent-mint);
-  color: var(--primary);
-}
-
-.badge-paper {
-  background: var(--surface-alt);
-  color: var(--text-header);
-}
-
-.review-options-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.review-opt-row {
-  display: flex;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--surface-alt);
-  font-size: 0.88rem;
-}
-
-.review-opt-row.is-answer {
-  background: var(--accent-mint);
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.review-opt-row.user-wrong {
-  background: var(--red-bg);
-  color: var(--red);
-  font-weight: 700;
+.mode-card-btn {
+  background: #fff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 24px 16px;
+  cursor: pointer;
+  text-align: center;
 }
 
 /* ==========================================================================
-   MOBILE & RESPONSIVE RULES (CLEAN SINGLE MEDIA QUERY)
+   AI PROMPT HELPER BANNER (MODERN FLUENT CARD)
    ========================================================================== */
+
+.ai-prompt-banner {
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-card);
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.05);
+}
+
+.ai-prompt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #dbeafe;
+  color: var(--primary);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.btn-copy-prompt {
+  background: #ffffff !important;
+  color: var(--primary) !important;
+  border: 1.5px solid #bfdbfe !important;
+  border-radius: var(--radius-pill) !important;
+  padding: 7px 16px !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
+}
+
+.btn-copy-prompt:hover {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
+}
+
+.btn-copy-prompt.copied {
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #ffffff !important;
+}
+
+.ai-prompt-desc {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.ai-prompt-preview {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: all;
+  margin: 0;
+}
+
+/* ==========================================================================
+   14. MOBILE & RESPONSIVE LAYOUT (<= 768px)
+   ========================================================================== */
+
 @media (max-width: 768px) {
   html, body {
     width: 100% !important;
@@ -846,7 +1247,7 @@ td:last-child {
     min-width: 0 !important;
   }
 
-  /* Fixed slide-out drawer */
+  /* Mobile Slide-Out Drawer Sidebar */
   aside {
     position: fixed !important;
     top: 0 !important;
@@ -892,7 +1293,7 @@ td:last-child {
     gap: 12px !important;
   }
 
-  /* 3 Compact Squares in 1 Row (Zero scroll, full wrap) */
+  /* 3 Compact Metric Squares */
   .stats-banner-grid {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -904,7 +1305,6 @@ td:last-child {
 
   .stat-metric-card {
     min-height: auto !important;
-    aspect-ratio: 1 / 1 !important;
     padding: 8px 4px !important;
     border-radius: 14px !important;
     display: flex !important;
@@ -932,35 +1332,111 @@ td:last-child {
     line-height: 1 !important;
   }
 
+  /* Subject Frame Header Single-Line */
+  .subject-frame-header {
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+  }
+
+  .subject-badge {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    min-width: 0 !important;
+  }
+
+  .subject-header-actions {
+    flex-shrink: 0 !important;
+  }
+
+  .subject-toggle-pill {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  /* Mobile Quiz Card Grid Layout */
   .quiz-card {
     display: grid !important;
-    grid-template-columns: 32px 1fr !important;
+    grid-template-columns: auto 1fr !important;
     grid-template-rows: auto auto !important;
-    gap: 10px !important;
-    padding: 14px 12px !important;
+    column-gap: 14px !important;
+    row-gap: 12px !important;
+    align-items: start !important;
+    position: relative !important;
+    overflow: visible !important;
+    padding: 22px 20px !important;
+    margin-bottom: 14px !important;
+    border-radius: 18px !important;
   }
 
   .quiz-drag-handle {
     grid-column: 1 !important;
-    grid-row: 1 / span 2 !important;
-    align-self: center !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2px 0 !important;
+    cursor: grab !important;
+    color: var(--text-light) !important;
     touch-action: none !important;
   }
 
   .quiz-card-info {
     grid-column: 2 !important;
     grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .quiz-card-info strong {
+    display: block !important;
+    font-size: 1.1rem !important;
+    line-height: 1.4 !important;
+    color: var(--text-header) !important;
+    word-break: normal !important;
+    white-space: normal !important;
+  }
+
+  .quiz-card-info p {
+    font-size: 0.84rem !important;
+    color: var(--text-muted) !important;
+    margin-top: 4px !important;
+    white-space: normal !important;
   }
 
   .quiz-card-actions {
     grid-column: 2 !important;
     grid-row: 2 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
   }
-}
 
-/* Mobile Records Table Handling */
+  .quiz-card-actions .btn {
+    padding: 9px 20px !important;
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
+  }
+
+  .quiz-card-actions .menu-trigger-btn {
+    width: 38px !important;
+    height: 38px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Single-column fallback for Creator cards on small screens */
+  .options-input-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Table horizontal responsiveness */
   .table-responsive table {
-    min-width: 520px; /* Allows horizontal swipe on phones without squeezing text */
+    min-width: 520px;
   }
 
   #view-records .panel-header-row {
@@ -973,3 +1449,9 @@ td:last-child {
     padding: 7px 14px !important;
     font-size: 0.8rem !important;
   }
+
+  /* Focus Mode padding on mobile */
+  .app-container.quiz-focus-mode main {
+    padding: 16px 12px !important;
+  }
+}
