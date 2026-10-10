@@ -404,18 +404,43 @@ async function renderQuizList() {
 
 function filterQuizzesRealtime(query) {
   const term = query.toLowerCase().trim();
-  const cards = document.querySelectorAll(".quiz-card");
+  const libraryContainer = document.getElementById('available-quiz-list');
+  if (!libraryContainer) return;
 
-  cards.forEach((card) => {
-    const title = card.querySelector("strong")?.innerText.toLowerCase() || "";
-    const subject = card.dataset.subject?.toLowerCase() || "";
-    const matches = title.includes(term) || subject.includes(term);
-    card.style.display = matches ? "flex" : "none";
-  });
+  // 1. If search is cleared, restore all frames and cards to their CSS defaults
+  if (!term) {
+    libraryContainer.querySelectorAll('.quiz-card').forEach(card => {
+      card.style.display = '';
+    });
+    libraryContainer.querySelectorAll('.subject-frame').forEach(frame => {
+      frame.style.display = '';
+    });
+    return;
+  }
 
-  document.querySelectorAll(".subject-frame").forEach((frame) => {
-    const visibleCards = frame.querySelectorAll('.quiz-card:not([style*="display: none"])');
-    frame.style.display = visibleCards.length > 0 ? "block" : "none";
+  // 2. Filter only cards within the library list container
+  const subjectFrames = libraryContainer.querySelectorAll('.subject-frame');
+
+  subjectFrames.forEach(frame => {
+    const cards = frame.querySelectorAll('.quiz-card');
+    let hasVisibleCards = false;
+
+    cards.forEach(card => {
+      const title = card.querySelector('strong')?.innerText.toLowerCase() || "";
+      const subject = card.dataset.subject?.toLowerCase() || "";
+      const matches = title.includes(term) || subject.includes(term);
+
+      card.style.display = matches ? '' : 'none';
+      if (matches) hasVisibleCards = true;
+    });
+
+    // 3. Keep the frame visible only if at least one card inside matches
+    frame.style.display = hasVisibleCards ? '' : 'none';
+
+    // 4. Temporarily expand collapsed frames during search so matching items are visible
+    if (hasVisibleCards && frame.classList.contains('is-collapsed')) {
+      frame.classList.remove('is-collapsed');
+    }
   });
 }
 
