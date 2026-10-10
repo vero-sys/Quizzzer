@@ -17,481 +17,466 @@
   <div class="app-container">
 
   <!-- Left Navigation Sidebar -->
-  <aside id="main-sidebar">
-      <div class="brand-header">
-        <div class="brand-logo-icon">Q</div>
-        <h2>QuizHub</h2>
-      </div>
+	<aside id="main-sidebar">
+	  <div class="brand-header">
+		<div class="brand-logo-icon">Q</div>
+		<h2>QuizHub</h2>
+	  </div>
 
-      <span class="nav-group-title">Menu</span>
-      <button class="nav-btn active" onclick="switchView('take')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-        Available Decks
-      </button>
+	  <span class="nav-group-title">Menu</span>
+	  <button class="nav-btn active" onclick="switchView('take')">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <rect x="3" y="3" width="7" height="7"></rect>
+		  <rect x="14" y="3" width="7" height="7"></rect>
+		  <rect x="14" y="14" width="7" height="7"></rect>
+		  <rect x="3" y="14" width="7" height="7"></rect>
+		</svg>
+		Available Decks
+	  </button>
 
-      <button class="nav-btn" onclick="switchView('records')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-        </svg>
-        Quiz Records
-      </button>
+	  <button class="nav-btn" onclick="switchView('records')">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+		  <polyline points="14 2 14 8 20 8"></polyline>
+		  <line x1="16" y1="13" x2="8" y2="13"></line>
+		  <line x1="16" y1="17" x2="8" y2="17"></line>
+		</svg>
+		Quiz Records
+	  </button>
 
-      <button class="nav-btn" onclick="switchView('create')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        Create Quiz
-      </button>
+	  <button class="nav-btn" onclick="switchView('create')">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <line x1="12" y1="5" x2="12" y2="19"></line>
+		  <line x1="5" y1="12" x2="19" y2="12"></line>
+		</svg>
+		Create Quiz
+	  </button>
 	  
 	  <button class="nav-btn" onclick="switchView('edit')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-        Edit Quiz
-      </button>
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		  <path d="M11 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+		  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+		</svg>
+		Edit Quiz
+	  </button>
 
-      <button class="nav-btn" onclick="switchView('upload')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        Upload File
-      </button>
+	  <button class="nav-btn" onclick="switchView('upload')">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+		  <polyline points="17 8 12 3 7 8"></polyline>
+		  <line x1="12" y1="3" x2="12" y2="15"></line>
+		</svg>
+		Upload File
+	  </button>
 
-      <span class="nav-group-title">Cloud &amp; Data</span>
-      <button class="nav-btn" onclick="pushLocalDataToSupabase()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
-        </svg>
-        Push to Cloud
-      </button>
+	  <span class="nav-group-title">Cloud &amp; Data</span>
+	  <button class="nav-btn" onclick="pushLocalDataToSupabase()">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+		</svg>
+		Push to Cloud
+	  </button>
 	  
-	  <!-- pull from cloud -->
-      <button class="nav-btn" onclick="pullCloudDataToLocalStorage()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M12 3v12"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <path d="M20 21H4"></path>
-        </svg>
-        Pull from Cloud
-      </button>
+	  <button class="nav-btn" onclick="pullCloudDataToLocalStorage()">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M12 3v12"></path>
+		  <polyline points="7 10 12 15 17 10"></polyline>
+		  <path d="M20 21H4"></path>
+		</svg>
+		Pull from Cloud
+	  </button>
 
-      <button class="nav-btn" onclick="exportDataBackup()">
+	  <button class="nav-btn" onclick="exportDataBackup()">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+		  <polyline points="17 8 12 3 7 8"></polyline>
+		  <line x1="12" y1="15" x2="12" y2="3"></line>
+		</svg>
+		Export JSON
+	  </button>
 
-      <button class="nav-btn" onclick="exportDataBackup()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-        Export JSON
-      </button>
+	  <button class="nav-btn" onclick="triggerImportFileInput()">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+		  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+		  <polyline points="17 8 12 3 7 8"></polyline>
+		  <line x1="12" y1="3" x2="12" y2="15"></line>
+		</svg>
+		Import JSON
+	  </button>
+	  <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="handleBackupFileSelect(event)" />
 
-      <button class="nav-btn" onclick="triggerImportFileInput()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        Import JSON
-      </button>
-      <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="handleBackupFileSelect(event)" />
+	  <!-- Single Auth Button (Last entry in Cloud & Data) -->
+	  <button id="auth-sidebar-item" class="nav-btn" type="button" onclick="handleAuthAction()">
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+		  <circle cx="12" cy="7" r="4"></circle>
+		</svg>
+		<span id="auth-nav-label">Sign In</span>
+	  </button>
 
-      <!-- Sidebar Status Card -->
-      <div class="sidebar-footer-card">
-        <strong>Supabase Active</strong>
-        <p>Live sync is connected across all devices.</p>
-        <button class="btn" type="button" onclick="renderQuizList()">Sync Now</button>
-      </div>
-    </aside>
+	</aside>
 
-    <!-- Main Workspace Area -->
-    <main>
-      <!-- Top Workspace Bar (Full-Width Search + Integrated Hamburger) -->
-	  <div class="top-action-bar">
-  <button class="topbar-menu-toggle" type="button" onclick="toggleSidebar()" aria-label="Open Sidebar Menu">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="3" y1="12" x2="21" y2="12"></line>
-      <line x1="3" y1="6" x2="21" y2="6"></line>
-      <line x1="3" y1="18" x2="21" y2="18"></line>
-    </svg>
-  </button>
+	<!-- Main Workspace Area -->
+	<main>
+  <!-- Top Workspace Bar (Full-Width Search + Integrated Hamburger) -->
+  <div class="top-action-bar">
+    <button class="topbar-menu-toggle" type="button" onclick="toggleSidebar()" aria-label="Open Sidebar Menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
 
-  <div class="search-pill-box">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <circle cx="11" cy="11" r="8"></circle>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-    </svg>
-    <input type="text" placeholder="Search deck or subject..." id="global-search-input" onkeyup="filterQuizzesRealtime(this.value)" />
-    <span class="kbd-badge">⌘F</span>
+    <div class="search-pill-box">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" placeholder="Search deck or subject..." id="global-search-input" onkeyup="filterQuizzesRealtime(this.value)" />
+      <span class="kbd-badge">⌘F</span>
+    </div>
   </div>
-</div>
 
-      <!-- View 1: Take Quiz / Library -->
-      <section id="view-take" class="view-panel active">
-        <div class="panel-header-row">
+  <!-- View 1: Take Quiz / Library -->
+  <section id="view-take" class="view-panel active">
+    <div class="panel-header-row">
+      <div>
+        <h3>Dashboard</h3>
+        <p class="subtitle">Plan, prioritize, and master your assessments with ease.</p>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" onclick="switchView('create')">+ Add Quiz</button>
+        <button class="btn btn-secondary" onclick="switchView('upload')">Import Data</button>
+      </div>
+    </div>
+
+    <!-- Metric Stat Cards -->
+    <div class="stats-banner-grid">
+      <div class="stat-metric-card primary-dark">
+        <div class="stat-card-top">
+          <span class="stat-card-title">Total Quizzes</span>
+          <div class="stat-diagonal-arrow">↗</div>
+        </div>
+        <div class="stat-card-bottom">
+          <div class="stat-big-number" id="dash-total-decks">0</div>
+          <span class="stat-badge-subtext">Active library items</span>
+        </div>
+      </div>
+
+      <div class="stat-metric-card">
+        <div class="stat-card-top">
+          <span class="stat-card-title">Completed Attempts</span>
+          <div class="stat-diagonal-arrow">↗</div>
+        </div>
+        <div class="stat-card-bottom">
+          <div class="stat-big-number" id="dash-total-attempts">0</div>
+          <span class="stat-badge-subtext">Logged sessions</span>
+        </div>
+      </div>
+
+      <div class="stat-metric-card">
+        <div class="stat-card-top">
+          <span class="stat-card-title">Average Accuracy</span>
+          <div class="stat-diagonal-arrow">↗</div>
+        </div>
+        <div class="stat-card-bottom">
+          <div class="stat-big-number" id="dash-avg-accuracy">0%</div>
+          <span class="stat-badge-subtext">All-time score average</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vertical Stack Subject Frames -->
+    <div id="quiz-deck-view">
+      <div id="available-quiz-list"></div>
+    </div>
+
+    <!-- Quiz Runner Section -->
+    <div id="quiz-active-runner" style="display: none;">
+      <div class="subject-frame">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <div>
-            <h3>Dashboard</h3>
-            <p class="subtitle">Plan, prioritize, and master your assessments with ease.</p>
+            <h4 id="active-quiz-title" style="font-size: 1.3rem; font-weight: 800;"></h4>
+            <span id="active-progress" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
           </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="switchView('create')">+ Add Quiz</button>
-            <button class="btn btn-secondary" onclick="switchView('upload')">Import Data</button>
-          </div>
-        </div>
-
-        <!-- Metric Stat Cards -->
-        <div class="stats-banner-grid">
-          <div class="stat-metric-card primary-dark">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Total Quizzes</span>
-              <div class="stat-diagonal-arrow">↗</div>
-            </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-total-decks">0</div>
-              <span class="stat-badge-subtext">Active library items</span>
-            </div>
-          </div>
-
-          <div class="stat-metric-card">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Completed Attempts</span>
-              <div class="stat-diagonal-arrow">↗</div>
-            </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-total-attempts">0</div>
-              <span class="stat-badge-subtext">Logged sessions</span>
-            </div>
-          </div>
-
-          <div class="stat-metric-card">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Average Accuracy</span>
-              <div class="stat-diagonal-arrow">↗</div>
-            </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-avg-accuracy">0%</div>
-              <span class="stat-badge-subtext">All-time score average</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Vertical Stack Subject Frames -->
-        <div id="quiz-deck-view">
-          <div id="available-quiz-list"></div>
-        </div>
-
-		<!-- Quiz Runner Section -->
-		<div id="quiz-active-runner" style="display: none;">
-		  <div class="subject-frame">
-			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-			  <div>
-				<h4 id="active-quiz-title" style="font-size: 1.3rem; font-weight: 800;"></h4>
-				<span id="active-progress" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
-			  </div>
-			  <div style="display: flex; gap: 8px; align-items: center;">
-				<button id="btn-flag-q" class="btn btn-secondary" type="button" onclick="toggleCurrentFlag()" title="Remember for later">
-				  <span id="flag-icon">🏳️</span> <span id="flag-label">Flag</span>
-				</button>
-				<button class="btn btn-secondary" onclick="exitQuizRunner()">Exit Session</button>
-			  </div>
-			</div>
-
-			<p id="active-q-text" style="font-size: 1.15rem; font-weight: 700; line-height: 1.5; margin-bottom: 16px;"></p>
-			<div id="active-options-list"></div>
-			<div id="active-explanation" class="explanation-callout" style="display: none; margin-top: 16px; padding: 14px; background: var(--amber-bg); border-radius: 12px; font-size: 0.9rem;"></div>
-
-			<div style="display: flex; justify-content: space-between; margin-top: 24px;">
-			  <button id="btn-prev-q" class="btn btn-secondary" onclick="changeQuestion(-1)">Previous</button>
-			  <div style="display: flex; gap: 8px;">
-				<button id="btn-next-q" class="btn" onclick="changeQuestion(1)">Next</button>
-				<button id="btn-finish-q" class="btn" style="display: none;" onclick="submitQuizAttempt()">Submit Quiz</button>
-			  </div>
-			</div>
-		  </div>
-		</div>
-		
-		<!-- Results Breakdown -->
-		<div id="quiz-result-summary" style="display: none;">
-		  <div class="subject-frame" style="text-align: center; padding: 40px 20px;">
-			<h3>Quiz Completed!</h3>
-			<p class="subtitle">Your score has been logged to your records table.</p>
-			<div id="result-score-display" style="font-size: 3rem; font-weight: 900; color: var(--primary); margin: 20px 0;">0 / 0</div>
-			<button class="btn" onclick="exitQuizRunner()">Back to Library</button>
-
-			<div id="summary-wrong-items-container" style="display: none; margin-top: 30px; text-align: left;">
-			  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
-				<h4 style="font-weight: 800; font-size: 1.1rem; margin: 0;">Items to Review</h4>
-				
-				<!-- Filter Pills Bar -->
-				<div class="summary-filter-pills" style="display: flex; gap: 8px; flex-wrap: wrap;">
-				  <button type="button" class="summary-pill active" onclick="filterSummaryReview('all')">
-					All <span id="filter-count-all" class="pill-count">0</span>
-				  </button>
-				  <button type="button" class="summary-pill" onclick="filterSummaryReview('correct')">
-					Correct <span id="filter-count-correct" class="pill-count">0</span>
-				  </button>
-				  <button type="button" class="summary-pill" onclick="filterSummaryReview('incorrect')">
-					Incorrect <span id="filter-count-incorrect" class="pill-count">0</span>
-				  </button>
-				  <button type="button" class="summary-pill" onclick="filterSummaryReview('flagged')">
-					Flagged <span id="filter-count-flagged" class="pill-count">0</span>
-				  </button>
-				</div>
-			  </div>
-
-			  <div id="summary-wrong-items-list"></div>
-			</div>
-		  </div>
-		</div>
-	  
-	  </section>
-
-	  <!-- View 2: Upload & AI Prompt Generator -->
-      <section id="view-upload" class="view-panel">
-        <div class="panel-header-row">
-          <div>
-            <h3>Upload Quiz Deck</h3>
-            <p class="subtitle">Import questions from documents or paste structured text generated by AI.</p>
-          </div>
-        </div>
-
-        <!-- Sleek AI Prompt Helper Card -->
-        <div class="ai-prompt-banner">
-          <div class="ai-prompt-header">
-            <div class="ai-badge">
-              <span>✨</span>
-              <strong>AI Prompt Helper</strong>
-            </div>
-            <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span>Copy AI Prompt</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-flag-q" class="btn btn-secondary" type="button" onclick="toggleCurrentFlag()" title="Remember for later">
+              <span id="flag-icon">🏳️</span> <span id="flag-label">Flag</span>
             </button>
+            <button class="btn btn-secondary" onclick="exitQuizRunner()">Exit Session</button>
           </div>
-          <p class="ai-prompt-desc">
-            Copy and paste this instruction into ChatGPT, Claude, or Gemini to get quizzes instantly formatted for QuizHub:
-          </p>
-          <!-- <pre class="ai-prompt-preview" id="ai-prompt-sample-text"> -->
-<!-- Please generate a quiz about [TOPIC/DOCUMENT]. 
-Strictly format the output exactly as follows:
-
-1. [Question text here]
-a. [Option A]
-b. [Option B]
-c. [Option C]
-d. [Option D]
-
-2. [Question text here]
-a. [Option A]
-b. [Option B]
-c. [Option C]
-d. [Option D]
-
-Answer Key:
-1. a - [Explanation / rationale]
-2. b - [Explanation / rationale] -->
-</pre>
         </div>
 
-        <!-- Upload & Input Form Frame -->
-        <div class="subject-frame">
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="quiz-title-input">Quiz Title</label>
-              <input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="quiz-subject-input">Subject / Category</label>
-              <input type="text" id="quiz-subject-input" placeholder="e.g., Clinical Psychology" />
-            </div>
-          </div>
+        <p id="active-q-text" style="font-size: 1.15rem; font-weight: 700; line-height: 1.5; margin-bottom: 16px;"></p>
+        <div id="active-options-list"></div>
+        <div id="active-explanation" class="explanation-callout" style="display: none; margin-top: 16px; padding: 14px; background: var(--amber-bg); border-radius: 12px; font-size: 0.9rem;"></div>
 
-          <!-- Modern File Dropzone -->
-          <div class="dropzone" onclick="document.getElementById('file-input').click()">
-            <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
-            <div style="font-size: 2rem; margin-bottom: 8px;">📄</div>
-            <p style="font-weight: 800; font-size: 1.02rem; color: var(--text-header); margin-bottom: 4px;">Click to browse or drop file here</p>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Supports .DOCX, .TXT, .CSV, and .JSON</p>
+        <div style="display: flex; justify-content: space-between; margin-top: 24px;">
+          <button id="btn-prev-q" class="btn btn-secondary" onclick="changeQuestion(-1)">Previous</button>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-next-q" class="btn" onclick="changeQuestion(1)">Next</button>
+            <button id="btn-finish-q" class="btn" style="display: none;" onclick="submitQuizAttempt()">Submit Quiz</button>
           </div>
-
-          <!-- Raw Input Area -->
-          <div class="form-group" style="margin-top: 24px;">
-            <label for="raw-paste">Or Paste Text Directly</label>
-            <textarea id="raw-paste" rows="8" placeholder="Paste questions here..."></textarea>
-          </div>
-
-          <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <button class="btn" onclick="processAndLoadQuiz()">Process &amp; Load Quiz</button>
-            <button class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
-          </div>
-
-          <div id="upload-status" class="status-box"></div>
         </div>
-      </section>
+      </div>
+    </div>
+    
+    <!-- Results Breakdown -->
+    <div id="quiz-result-summary" style="display: none;">
+      <div class="subject-frame" style="text-align: center; padding: 40px 20px;">
+        <h3>Quiz Completed!</h3>
+        <p class="subtitle">Your score has been logged to your records table.</p>
+        <div id="result-score-display" style="font-size: 3rem; font-weight: 900; color: var(--primary); margin: 20px 0;">0 / 0</div>
+        <button class="btn" onclick="exitQuizRunner()">Back to Library</button>
 
-	  <!-- View 3: Records History -->
-	  <section id="view-records" class="view-panel">
-		  <div class="panel-header-row">
-			<div>
-			  <h3>Quiz Records</h3>
-			  <p class="subtitle">History of completed quizzes, performance scores, and mistake breakdowns.</p>
-			</div>
-			<button class="btn btn-danger" onclick="clearAllRecords()">Clear All History</button>
-		  </div>
-
-		  <!-- Records Mode Filter Pills -->
-		  <div class="records-filter-pills" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-			<button type="button" class="summary-pill active" onclick="filterRecordsTable('all')">
-			  All <span id="record-count-all" class="pill-count">0</span>
-			</button>
-			<button type="button" class="summary-pill" onclick="filterRecordsTable('device')">
-			  On Device <span id="record-count-device" class="pill-count">0</span>
-			</button>
-			<button type="button" class="summary-pill" onclick="filterRecordsTable('paper')">
-			  Pen &amp; Paper <span id="record-count-paper" class="pill-count">0</span>
-			</button>
-		  </div>
-
-		  <div class="table-responsive">
-			<table>
-			  <thead>
-				<tr>
-				  <th>Quiz Title</th>
-				  <th>Date</th>
-				  <th>Score</th>
-				  <th>Accuracy</th>
-				  <th style="width: 90px; text-align: center;">Action</th>
-				</tr>
-			  </thead>
-			  <tbody id="records-table-body"></tbody>
-			</table>
-		  </div>
-		</section>
-
-
-      <!-- View 4: Clean Manual Creator -->
-      <section id="view-create" class="view-panel">
-        <div class="panel-header-row">
-          <div>
-            <h3>Create Assessment</h3>
-            <p class="subtitle">Draft a brand new question deck from scratch.</p>
-          </div>
-          <button class="btn" type="button" onclick="saveManualQuiz('create')">Save &amp; Open in Library</button>
-        </div>
-
-        <div class="subject-frame">
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="create-quiz-title">Quiz Title</label>
-              <input type="text" id="create-quiz-title" placeholder="e.g., Clinical Psychology Midterms" />
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="create-quiz-subject">Subject / Category</label>
-              <input type="text" id="create-quiz-subject" placeholder="e.g., General Psychology" />
+        <div id="summary-wrong-items-container" style="display: none; margin-top: 30px; text-align: left;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+            <h4 style="font-weight: 800; font-size: 1.1rem; margin: 0;">Items to Review</h4>
+            
+            <!-- Filter Pills Bar -->
+            <div class="summary-filter-pills" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="summary-pill active" onclick="filterSummaryReview('all')">
+                All <span id="filter-count-all" class="pill-count">0</span>
+              </button>
+              <button type="button" class="summary-pill" onclick="filterSummaryReview('correct')">
+                Correct <span id="filter-count-correct" class="pill-count">0</span>
+              </button>
+              <button type="button" class="summary-pill" onclick="filterSummaryReview('incorrect')">
+                Incorrect <span id="filter-count-incorrect" class="pill-count">0</span>
+              </button>
+              <button type="button" class="summary-pill" onclick="filterSummaryReview('flagged')">
+                Flagged <span id="filter-count-flagged" class="pill-count">0</span>
+              </button>
             </div>
           </div>
 
-          <div id="creator-questions-container"></div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
-            <button class="btn btn-secondary" type="button" onclick="addQuestionBlock('creator-questions-container')">+ Add Question</button>
-            <button class="btn" type="button" onclick="saveManualQuiz('create')">Save &amp; Open in Library</button>
-          </div>
-          <div id="create-status" class="status-box"></div>
+          <div id="summary-wrong-items-list"></div>
         </div>
-      </section>
+      </div>
+    </div>
+  </section>
 
-	  <!-- View 5: Attempt Deep-Dive Review -->
-	  <section id="view-review" class="view-panel">
-		  <div class="panel-header-row">
-			<div>
-			  <h3 id="review-panel-title">Attempt Review</h3>
-			  <p class="subtitle" id="review-panel-subtitle">Review questions and rationales.</p>
-			</div>
-			<button class="btn btn-secondary" onclick="switchView('records')">Back to Records</button>
-		  </div>
+  <!-- View 2: Upload & AI Prompt Generator -->
+  <section id="view-upload" class="view-panel">
+    <div class="panel-header-row">
+      <div>
+        <h3>Upload Quiz Deck</h3>
+        <p class="subtitle">Import questions from documents or paste structured text generated by AI.</p>
+      </div>
+    </div>
 
-		  <div id="review-score-banner" style="background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); padding: 18px 24px; margin-bottom: 20px; font-weight: 800; font-size: 1.05rem;">
-			Score: <span id="review-score-text"></span> &bull; Accuracy: <span id="review-accuracy-text"></span>
-		  </div>
+    <!-- Sleek AI Prompt Helper Card -->
+    <div class="ai-prompt-banner">
+      <div class="ai-prompt-header">
+        <div class="ai-badge">
+          <span>✨</span>
+          <strong>AI Prompt Helper</strong>
+        </div>
+        <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span>Copy AI Prompt</span>
+        </button>
+      </div>
+      <p class="ai-prompt-desc">
+        Copy and paste this instruction into ChatGPT, Claude, or Gemini to get quizzes instantly formatted for QuizHub:
+      </p>
+    </div>
 
-		  <!-- Review Mode Filter Pills -->
-		  <div class="attempt-review-filter-pills" style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
-			<button type="button" class="summary-pill active" onclick="filterAttemptReview('all')">
-			  All <span id="review-count-all" class="pill-count">0</span>
-			</button>
-			<button type="button" class="summary-pill" onclick="filterAttemptReview('correct')">
-			  Correct <span id="review-count-correct" class="pill-count">0</span>
-			</button>
-			<button type="button" class="summary-pill" onclick="filterAttemptReview('mistakes')">
-			  Mistakes <span id="review-count-mistakes" class="pill-count">0</span>
-			</button>
-			<button type="button" class="summary-pill" onclick="filterAttemptReview('flagged')">
-			  Flagged <span id="review-count-flagged" class="pill-count">0</span>
-			</button>
-		  </div>
+    <!-- Upload & Input Form Frame -->
+    <div class="subject-frame">
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="quiz-title-input">Quiz Title</label>
+          <input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="quiz-subject-input">Subject / Category</label>
+          <input type="text" id="quiz-subject-input" placeholder="e.g., Clinical Psychology" />
+        </div>
+      </div>
 
-		  <div id="review-all-questions-list"></div>
-	  </section>
+      <!-- Modern File Dropzone -->
+      <div class="dropzone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
+        <div style="font-size: 2rem; margin-bottom: 8px;">📄</div>
+        <p style="font-weight: 800; font-size: 1.02rem; color: var(--text-header); margin-bottom: 4px;">Click to browse or drop file here</p>
+        <p style="font-size: 0.82rem; color: var(--text-muted);">Supports .DOCX, .TXT, .CSV, and .JSON</p>
+      </div>
 
-	  <!-- View 6: Dedicated Edit Deck Panel -->
-      <section id="view-edit" class="view-panel">
-        <div class="panel-header-row">
-          <div>
-            <h3>Edit Assessment</h3>
-            <p class="subtitle">Select any saved deck to modify questions, keys, and rationales.</p>
+      <!-- Raw Input Area -->
+      <div class="form-group" style="margin-top: 24px;">
+        <label for="raw-paste">Or Paste Text Directly</label>
+        <textarea id="raw-paste" rows="8" placeholder="Paste questions here..."></textarea>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button class="btn" onclick="processAndLoadQuiz()">Process &amp; Load Quiz</button>
+        <button class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
+      </div>
+
+      <div id="upload-status" class="status-box"></div>
+    </div>
+  </section>
+
+  <!-- View 3: Records History -->
+  <section id="view-records" class="view-panel">
+    <div class="panel-header-row">
+      <div>
+        <h3>Quiz Records</h3>
+        <p class="subtitle">History of completed quizzes, performance scores, and mistake breakdowns.</p>
+      </div>
+      <button class="btn btn-danger" onclick="clearAllRecords()">Clear All History</button>
+    </div>
+
+    <!-- Records Mode Filter Pills -->
+    <div class="records-filter-pills" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+      <button type="button" class="summary-pill active" onclick="filterRecordsTable('all')">
+        All <span id="record-count-all" class="pill-count">0</span>
+      </button>
+      <button type="button" class="summary-pill" onclick="filterRecordsTable('device')">
+        On Device <span id="record-count-device" class="pill-count">0</span>
+      </button>
+      <button type="button" class="summary-pill" onclick="filterRecordsTable('paper')">
+        Pen &amp; Paper <span id="record-count-paper" class="pill-count">0</span>
+      </button>
+    </div>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+		  <tr>
+			<th onclick="sortRecordsBy('title')" style="cursor: pointer; user-select: none;">
+			  Quiz Title <span id="sort-icon-title" style="font-size: 0.75rem; opacity: 0.6;">⇅</span>
+			</th>
+			<th onclick="sortRecordsBy('date')" style="cursor: pointer; user-select: none;">
+			  Date <span id="sort-icon-date" style="font-size: 0.75rem; opacity: 0.6;">▼</span>
+			</th>
+			<th onclick="sortRecordsBy('score')" style="cursor: pointer; user-select: none;">
+			  Score <span id="sort-icon-score" style="font-size: 0.75rem; opacity: 0.6;">⇅</span>
+			</th>
+			<th onclick="sortRecordsBy('accuracy')" style="cursor: pointer; user-select: none;">
+			  Accuracy <span id="sort-icon-accuracy" style="font-size: 0.75rem; opacity: 0.6;">⇅</span>
+			</th>
+			<th style="width: 90px; text-align: center;">Action</th>
+		  </tr>
+		</thead>
+        <tbody id="records-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- View 4: Clean Manual Creator -->
+  <section id="view-create" class="view-panel">
+    <div class="panel-header-row">
+      <div>
+        <h3>Create Assessment</h3>
+        <p class="subtitle">Draft a brand new question deck from scratch.</p>
+      </div>
+      <button class="btn" type="button" onclick="saveManualQuiz('create')">Save &amp; Open in Library</button>
+    </div>
+
+    <div class="subject-frame">
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="create-quiz-title">Quiz Title</label>
+          <input type="text" id="create-quiz-title" placeholder="e.g., Clinical Psychology Midterms" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="create-quiz-subject">Subject / Category</label>
+          <input type="text" id="create-quiz-subject" placeholder="e.g., General Psychology" />
+        </div>
+      </div>
+
+      <div id="creator-questions-container"></div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+        <button class="btn btn-secondary" type="button" onclick="addQuestionBlock('creator-questions-container')">+ Add Question</button>
+        <button class="btn" type="button" onclick="saveManualQuiz('create')">Save &amp; Open in Library</button>
+      </div>
+      <div id="create-status" class="status-box"></div>
+    </div>
+  </section>
+
+  <!-- View 5: Attempt Deep-Dive Review -->
+  <section id="view-review" class="view-panel">
+    <div class="panel-header-row">
+      <div>
+        <h3 id="review-panel-title">Attempt Review</h3>
+        <p class="subtitle" id="review-panel-subtitle">Review questions and rationales.</p>
+      </div>
+      <button class="btn btn-secondary" onclick="switchView('records')">Back to Records</button>
+    </div>
+
+    <div id="review-score-banner" style="background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); padding: 18px 24px; margin-bottom: 20px; font-weight: 800; font-size: 1.05rem;">
+      Score: <span id="review-score-text"></span> &bull; Accuracy: <span id="review-accuracy-text"></span>
+    </div>
+
+    <!-- Review Mode Filter Pills -->
+    <div class="attempt-review-filter-pills" style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+      <button type="button" class="summary-pill active" onclick="filterAttemptReview('all')">
+        All <span id="review-count-all" class="pill-count">0</span>
+      </button>
+      <button type="button" class="summary-pill" onclick="filterAttemptReview('correct')">
+        Correct <span id="review-count-correct" class="pill-count">0</span>
+      </button>
+      <button type="button" class="summary-pill" onclick="filterAttemptReview('mistakes')">
+        Mistakes <span id="review-count-mistakes" class="pill-count">0</span>
+      </button>
+      <button type="button" class="summary-pill" onclick="filterAttemptReview('flagged')">
+        Flagged <span id="review-count-flagged" class="pill-count">0</span>
+      </button>
+    </div>
+
+    <div id="review-all-questions-list"></div>
+  </section>
+
+  <!-- View 6: Dedicated Edit Deck Panel -->
+  <section id="view-edit" class="view-panel">
+    <div class="panel-header-row">
+      <div>
+        <h3>Edit Assessment</h3>
+        <p class="subtitle">Select any saved deck to modify questions, keys, and rationales.</p>
+      </div>
+      <button class="btn" type="button" onclick="saveManualQuiz('edit')">Save Changes</button>
+    </div>
+
+    <div class="subject-frame">
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label for="select-edit-quiz">Select Quiz to Edit</label>
+        <select id="select-edit-quiz" onchange="loadQuizForEditing(this.value)">
+          <option value="">-- Choose a quiz to load --</option>
+        </select>
+      </div>
+
+      <input type="hidden" id="editing-quiz-id" value="" />
+
+      <div id="edit-editor-area" style="display: none;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-quiz-title">Quiz Title</label>
+            <input type="text" id="edit-quiz-title" />
           </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-quiz-subject">Subject / Category</label>
+            <input type="text" id="edit-quiz-subject" />
+          </div>
+        </div>
+
+        <div id="editor-questions-container"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+          <button class="btn btn-secondary" type="button" onclick="addQuestionBlock('editor-questions-container')">+ Add Question</button>
           <button class="btn" type="button" onclick="saveManualQuiz('edit')">Save Changes</button>
         </div>
-
-        <div class="subject-frame">
-          <div class="form-group" style="margin-bottom: 24px;">
-            <label for="select-edit-quiz">Select Quiz to Edit</label>
-            <select id="select-edit-quiz" onchange="loadQuizForEditing(this.value)">
-              <option value="">-- Choose a quiz to load --</option>
-            </select>
-          </div>
-
-          <input type="hidden" id="editing-quiz-id" value="" />
-
-          <div id="edit-editor-area" style="display: none;">
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="edit-quiz-title">Quiz Title</label>
-                <input type="text" id="edit-quiz-title" />
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="edit-quiz-subject">Subject / Category</label>
-                <input type="text" id="edit-quiz-subject" />
-              </div>
-            </div>
-
-            <div id="editor-questions-container"></div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
-              <button class="btn btn-secondary" type="button" onclick="addQuestionBlock('editor-questions-container')">+ Add Question</button>
-              <button class="btn" type="button" onclick="saveManualQuiz('edit')">Save Changes</button>
-            </div>
-            <div id="edit-status" class="status-box"></div>
-          </div>
-        </div>
-      </section>
-	  
-    </main>
+        <div id="edit-status" class="status-box"></div>
+      </div>
+    </div>
+  </section>
+</main>
   </div>
 
   <!-- Modal: Rename & Edit Subject -->
@@ -613,7 +598,34 @@ Answer Key:
     </div>
     </div>
   </div>
+  
+	<!-- Admin Auth Modal (PIN Passcode) -->
+	<div id="auth-modal" class="modal-overlay" style="display: none;">
+	  <div class="modal-content" style="max-width: 340px; text-align: left;">
+		<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+		  <h4 style="font-size: 1.25rem; font-weight: 800; color: var(--text-header); margin: 0;">Admin Passcode</h4>
+		  <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick="closeAuthModal()">✕</button>
+		</div>
+		<p class="subtitle" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">Enter your numeric PIN to unlock cloud sync.</p>
 
+		<div class="form-group" style="margin-bottom: 16px;">
+		  <input 
+			type="password" 
+			id="auth-pin" 
+			inputmode="numeric" 
+			pattern="[0-9]*" 
+			maxlength="8" 
+			placeholder="••••" 
+			style="width: 100%; padding: 12px; font-size: 1.5rem; text-align: center; letter-spacing: 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-input); box-sizing: border-box;" 
+			onkeydown="if(event.key === 'Enter') handleAuthLogin()"
+		  />
+		</div>
+
+		<div id="auth-error-msg" style="color: var(--red, #e53e3e); font-size: 0.8rem; margin-bottom: 12px; display: none;"></div>
+
+		<button id="auth-submit-btn" class="btn" style="width: 100%; padding: 11px; font-weight: 700;" onclick="handleAuthLogin()">Unlock & Continue</button>
+	  </div>
+	</div>
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>

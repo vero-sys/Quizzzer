@@ -1,107 +1,329 @@
-// --- Global State ---
-let activeQuizInstance = null;
-let currentQuestionIdx = 0;
-let userAnswers = {};
-let pendingDeleteRecordId = null;
-let pendingQuizForMode = null;
-let currentQuizMode = "device"; // "device" or "paper"
-let selectedPaperMistakes = new Set();
-let cachedDecks = [];
+/* ==========================================================================
+   QUIZHUB APPLICATION CORE
+   ========================================================================== */
 
-// --- Supabase Universal Sync Setup ---
+/* --------------------------------------------------------------------------
+   1. CONSTANTS & SUPABASE INITIALIZATION
+   -------------------------------------------------------------------------- */
 const SUPABASE_URL = "https://uvxtokjdedebpuasvbyk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_xOAPwp8cUxAYmG9CjoiNFQ_XOjNXQ25";
-
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const PERSONAL_AUTH_CONFIG = {
+  dummyEmail: "admin@quizhub.local", // Set this to the email created in Supabase
+  getPassword: (pin) => `${pin}`
+};
+
+/* --------------------------------------------------------------------------
+   2. GLOBAL APPLICATION STATE
+   -------------------------------------------------------------------------- */
+let currentUser = null;
+let pendingAuthCallback = null;
+
+// Library and Runner State
+let cachedDecks = [];
+let activeQuizInstance = null;
+let currentQuestionIdx = 0;
+let currentQuizMode = "device"; // "device" | "paper"
+let pendingQuizForMode = null;
+let userAnswers = {};
+let flaggedQuestions = new Set();
+let selectedPaperMistakes = new Set();
+let currentSummaryReviewItems = [];
+
+// Records and Table State
+let currentRecordsCache = [];
+let currentRecordsFilter = "all"; // "all" | "device" | "paper"
+let currentSortColumn = "date"; // "title" | "date" | "score" | "accuracy"
+let currentSortOrder = "desc"; // "asc" | "desc"
+let currentActiveAttemptRecord = null;
+let currentAttemptFilter = "all"; // "all" | "correct" | "mistakes" | "flagged"
+let pendingDeleteRecordId = null;
+
+/* --------------------------------------------------------------------------
+   3. LIFECYCLE & ROUTING
+   -------------------------------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
   initManualCreator();
   initBackgroundRunner();
-  updateDashboardMetrics();
+  initAuthSession();
 
-  // Load cloud data and re-calculate metrics when finished
   await renderQuizList();
   await renderRecordsTable();
   updateDashboardMetrics();
 });
 
-// --- View Router ---
+function initBackgroundRunner() {
+  // Reserved for background interval utilities
+}
+
 function switchView(viewName) {
-  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(".view-panel").forEach((panel) => panel.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.remove("active"));
 
-  const target = document.getElementById('view-' + viewName);
-  if (target) target.classList.add('active');
+  const targetPanel = document.getElementById("view-" + viewName);
+  if (targetPanel) targetPanel.classList.add("active");
 
-  const btn = Array.from(document.querySelectorAll('.nav-btn')).find(b =>
-    b.getAttribute('onclick') && b.getAttribute('onclick').includes(viewName)
+  const navButton = Array.from(document.querySelectorAll(".nav-btn")).find((btn) =>
+    btn.getAttribute("onclick")?.includes(viewName)
   );
-  if (btn) btn.classList.add('active');
+  if (navButton) navButton.classList.add("active");
+
   closeSidebar();
   updateDashboardMetrics();
 }
 
-// --- flag Function ---
-
-let flaggedQuestions = new Set();
-
-function toggleCurrentFlag() {
-  const idx = parseInt(currentQuestionIdx, 10);
-  if (flaggedQuestions.has(idx)) {
-    flaggedQuestions.delete(idx);
-  } else {
-    flaggedQuestions.add(idx);
+function updateDashboardMetrics() {
+  let totalDecksCount = cachedDecks.length;
+  if (!totalDecksCount) {
+    try {
+      totalDecksCount = JSON.parse(localStorage.getItem("quizzes") || "[]").length;
+    } catch {
+      totalDecksCount = 0;
+    }
   }
-  updateFlagButtonUI();
+
+  let records = [];
+  try {
+    records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+  } catch {
+    records = [];
+  }
+
+  const elDecks = document.getElementById("dash-total-decks");
+  const elAttempts = document.getElementById("dash-total-attempts");
+  const elAccuracy = document.getElementById("dash-avg-accuracy");
+
+  if (elDecks) elDecks.innerText = totalDecksCount;
+  if (elAttempts) elAttempts.innerText = records.length;
+
+  if (elAccuracy) {
+    if (records.length === 0) {
+      elAccuracy.innerText = "0%";
+    } else {
+      let sum = 0;
+      let valid = 0;
+      records.forEach((r) => {
+        let val = NaN;
+        if (r.percentage !== undefined && r.percentage !== null) {
+          val = parseFloat(String(r.percentage).replace("%", ""));
+        } else if (r.score !== undefined && r.totalQuestions) {
+          val = (parseFloat(r.score) / parseFloat(r.totalQuestions)) * 100;
+        }
+        if (!isNaN(val)) {
+          sum += val;
+          valid++;
+        }
+      });
+      elAccuracy.innerText = valid > 0 ? `${Math.round(sum / valid)}%` : "0%";
+    }
+  }
 }
 
-function updateFlagButtonUI() {
-  const btn = document.getElementById('btn-flag-q');
-  const icon = document.getElementById('flag-icon');
-  const label = document.getElementById('flag-label');
-  if (!btn) return;
+/* --------------------------------------------------------------------------
+   4. NAVIGATION, SIDEBAR & THEME
+   -------------------------------------------------------------------------- */
+function toggleSidebar() {
+  const sidebar = document.getElementById("main-sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (!sidebar) return;
 
-  const idx = parseInt(currentQuestionIdx, 10);
-  const isFlagged = flaggedQuestions.has(idx);
-  
-  btn.classList.toggle('is-flagged', isFlagged);
-  if (icon) icon.innerText = isFlagged ? '🚩' : '🏳️';
-  if (label) label.innerText = isFlagged ? 'Flagged' : 'Flag';
+  const isOpen = sidebar.classList.toggle("open");
+  if (backdrop) backdrop.classList.toggle("active", isOpen);
 }
 
-// --- Module: Quiz Library & Deck (Cloud-Synced) ---
-async function renderQuizList() {
-  const container = document.getElementById('available-quiz-list');
-  if (!container) return;
+function closeSidebar() {
+  const sidebar = document.getElementById("main-sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (sidebar) sidebar.classList.remove("open");
+  if (backdrop) backdrop.classList.remove("active");
+}
 
-  container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; padding: 12px 0;">Syncing quizzes from cloud...</p>`;
+function initTheme() {
+  const savedTheme = localStorage.getItem("quizhub_theme") || "normal";
+  setTheme(savedTheme);
+}
+
+function setTheme(themeName) {
+  const root = document.documentElement;
+  const btnDoraemon = document.getElementById("theme-btn-doraemon");
+  const btnNormal = document.getElementById("theme-btn-normal");
+
+  if (themeName === "normal") {
+    root.setAttribute("data-theme", "normal");
+    if (btnNormal) btnNormal.classList.add("active");
+    if (btnDoraemon) btnDoraemon.classList.remove("active");
+  } else {
+    root.removeAttribute("data-theme");
+    if (btnDoraemon) btnDoraemon.classList.add("active");
+    if (btnNormal) btnNormal.classList.remove("active");
+  }
+  localStorage.setItem("quizhub_theme", themeName);
+}
+
+function showStatus(elementId, message, statusType) {
+  const box = document.getElementById(elementId);
+  if (!box) return;
+  box.className = `status-box ${statusType}`;
+  box.innerText = message;
+  box.style.display = "block";
+}
+
+function copyAIPromptTemplate(btnElement) {
+  const promptText = `Please generate a quiz about [TOPIC/DOCUMENT]. 
+Strictly format the output exactly as follows:
+
+1. [Question text here]
+a. [Option A]
+b. [Option B]
+c. [Option C]
+d. [Option D]
+
+Answer Key:
+1. a - [Explanation / rationale]`;
+
+  navigator.clipboard.writeText(promptText).then(() => {
+    const originalHtml = btnElement.innerHTML;
+    btnElement.classList.add("copied");
+    btnElement.innerHTML = `<span>✓</span> <span>Copied to Clipboard!</span>`;
+    setTimeout(() => {
+      btnElement.classList.remove("copied");
+      btnElement.innerHTML = originalHtml;
+    }, 2200);
+  }).catch((err) => {
+    console.error("Clipboard copy failed:", err);
+  });
+}
+
+/* --------------------------------------------------------------------------
+   5. AUTHENTICATION & PIN PASSCODE MANAGEMENT
+   -------------------------------------------------------------------------- */
+async function initAuthSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user || null;
+  updateAuthSidebar(currentUser);
+
+  sb.auth.onAuthStateChange((_event, sessionState) => {
+    currentUser = sessionState?.user || null;
+    updateAuthSidebar(currentUser);
+  });
+}
+
+function handleAuthAction() {
+  if (currentUser) {
+    handleAuthLogout();
+  } else {
+    openAuthModal();
+  }
+}
+
+function openAuthModal(callbackAfterLogin = null) {
+  pendingAuthCallback = callbackAfterLogin;
+  const modal = document.getElementById("auth-modal");
+  const pinInput = document.getElementById("auth-pin");
+  const errBox = document.getElementById("auth-error-msg");
+
+  if (errBox) errBox.style.display = "none";
+  if (pinInput) pinInput.value = "";
+  if (modal) modal.style.display = "flex";
+
+  setTimeout(() => pinInput?.focus(), 50);
+}
+
+function closeAuthModal() {
+  const modal = document.getElementById("auth-modal");
+  const pinInput = document.getElementById("auth-pin");
+  if (modal) modal.style.display = "none";
+  if (pinInput) pinInput.value = "";
+  pendingAuthCallback = null;
+}
+
+async function handleAuthLogin() {
+  const pinInput = document.getElementById("auth-pin");
+  const pin = pinInput ? pinInput.value.trim() : "";
+  const errBox = document.getElementById("auth-error-msg");
+  if (errBox) errBox.style.display = "none";
+
+  if (!pin) {
+    if (errBox) {
+      errBox.innerText = "Please enter your passcode.";
+      errBox.style.display = "block";
+    }
+    return;
+  }
 
   try {
-    const { data, error } = await sb
-      .from('quiz_decks')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('uploaded_at', { ascending: false });
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: PERSONAL_AUTH_CONFIG.dummyEmail,
+      password: PERSONAL_AUTH_CONFIG.getPassword(pin),
+    });
 
+    if (error) throw new Error("Incorrect passcode.");
+
+    currentUser = data.user;
+    updateAuthSidebar(currentUser);
+    closeAuthModal();
+
+    if (typeof pendingAuthCallback === "function") {
+      const action = pendingAuthCallback;
+      pendingAuthCallback = null;
+      await action();
+    } else {
+      typeof showToast === "function" 
+        ? showToast("Unlocked successfully!") 
+        : alert("Unlocked successfully!");
+    }
+  } catch (err) {
+    if (errBox) {
+      errBox.innerText = err.message || "Failed to unlock.";
+      errBox.style.display = "block";
+    }
+  } finally {
+    if (pinInput) pinInput.value = "";
+  }
+}
+
+async function handleAuthLogout() {
+  try {
+    const { error } = await sb.auth.signOut();
     if (error) throw error;
 
-    cachedDecks = (data || []).map((q, idx) => ({
-      id: q.id,
-      title: q.title,
-      subject: q.subject || 'General',
-      sortOrder: q.sort_order ?? idx,
-      uploadedAt: q.uploaded_at,
-      totalQuestions: q.total_questions,
-      questions: q.questions
-    }));
-
-    localStorage.setItem('quizzes', JSON.stringify(cachedDecks));
+    currentUser = null;
+    updateAuthSidebar(null);
+    typeof showToast === "function"
+      ? showToast("Locked. Switched to guest mode.")
+      : alert("Locked. Switched to guest mode.");
   } catch (err) {
-    console.warn("Using local quiz cache:", err.message);
-    cachedDecks = JSON.parse(localStorage.getItem('quizzes') || '[]');
+    console.error("Lock/Sign-out failed:", err);
+    typeof showToast === "function" 
+      ? showToast("Sign out failed: " + err.message) 
+      : alert("Sign out failed: " + err.message);
   }
+}
 
+function updateAuthSidebar(user) {
+  const labelEl = document.getElementById("auth-nav-label");
+  const btnEl = document.getElementById("auth-sidebar-item");
+  if (!labelEl || !btnEl) return;
+
+  if (user) {
+    labelEl.textContent = "Lock Session";
+    btnEl.title = "Cloud access unlocked";
+  } else {
+    labelEl.textContent = "Unlock (PIN)";
+    btnEl.title = "Enter PIN to access cloud sync";
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. QUIZ LIBRARY & DECK CONTROLS (LOCAL-FIRST)
+   -------------------------------------------------------------------------- */
+async function renderQuizList() {
+  const container = document.getElementById("available-quiz-list");
+  if (!container) return;
+
+  cachedDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
   populateEditQuizDropdown();
   updateDashboardMetrics();
   container.innerHTML = "";
@@ -111,32 +333,27 @@ async function renderQuizList() {
     return;
   }
 
-  // Group decks by subject
   const subjectsMap = {};
-  cachedDecks.forEach(deck => {
-    const subj = deck.subject || 'General';
+  cachedDecks.forEach((deck) => {
+    const subj = deck.subject || "General";
     if (!subjectsMap[subj]) subjectsMap[subj] = [];
     subjectsMap[subj].push(deck);
   });
 
-  // Render vertical frames per subject
-  Object.keys(subjectsMap).forEach(subjectName => {
+  Object.keys(subjectsMap).forEach((subjectName) => {
     const decks = subjectsMap[subjectName];
-    const safeSubjId = encodeURIComponent(subjectName).replace(/%/g, '_');
+    const safeSubjId = encodeURIComponent(subjectName).replace(/%/g, "_");
 
-    const frame = document.createElement('div');
-    frame.className = 'subject-frame';
+    const frame = document.createElement("div");
+    frame.className = "subject-frame";
     frame.id = `subject-frame-${safeSubjId}`;
     frame.dataset.subject = subjectName;
-
     frame.innerHTML = `
       <div class="subject-frame-header" onclick="toggleSubjectCollapse('${safeSubjId}')">
-        <span class="subject-badge">
-          📁 ${subjectName}
-        </span>
+        <span class="subject-badge">📁 ${subjectName}</span>
         <div class="subject-header-actions">
           <button type="button" class="subject-toggle-pill" title="Click to collapse or expand">
-            <span>${decks.length} Deck${decks.length > 1 ? 's' : ''}</span>
+            <span>${decks.length} Deck${decks.length > 1 ? "s" : ""}</span>
             <span class="subject-toggle-arrow">▼</span>
           </button>
         </div>
@@ -144,24 +361,19 @@ async function renderQuizList() {
       <div class="subject-quiz-list" data-subject="${subjectName}"></div>
     `;
 
-    const listContainer = frame.querySelector('.subject-quiz-list');
-
-    decks.forEach(quiz => {
-      const card = document.createElement('div');
-      card.className = 'quiz-card';
+    const listContainer = frame.querySelector(".subject-quiz-list");
+    decks.forEach((quiz) => {
+      const card = document.createElement("div");
+      card.className = "quiz-card";
       card.draggable = true;
       card.dataset.id = quiz.id;
       card.dataset.subject = subjectName;
-
       card.innerHTML = `
         <div class="quiz-drag-handle" title="Drag to reorder">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="9" cy="6" r="1"></circle>
-            <circle cx="15" cy="6" r="1"></circle>
-            <circle cx="9" cy="12" r="1"></circle>
-            <circle cx="15" cy="12" r="1"></circle>
-            <circle cx="9" cy="18" r="1"></circle>
-            <circle cx="15" cy="18" r="1"></circle>
+            <circle cx="9" cy="6" r="1"></circle><circle cx="15" cy="6" r="1"></circle>
+            <circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle>
+            <circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="18" r="1"></circle>
           </svg>
         </div>
         <div class="quiz-card-info">
@@ -172,21 +384,12 @@ async function renderQuizList() {
         </div>
         <div class="quiz-card-actions">
           <button class="btn" type="button" onclick="launchQuizById('${quiz.id}')">Start Quiz</button>
-          
           <div class="card-menu-container">
-            <button class="menu-trigger-btn" type="button" onclick="toggleCardMenu(event, '${quiz.id}')" title="More options" aria-label="More options">
-              &#8942;
-            </button>
+            <button class="menu-trigger-btn" type="button" onclick="toggleCardMenu(event, '${quiz.id}')" title="More options" aria-label="More options">&#8942;</button>
             <div class="card-menu-dropdown" id="card-menu-${quiz.id}">
-              <button class="btn-menu-rename" type="button" onclick="openRenameModal('${quiz.id}', '${encodeURIComponent(quiz.title)}')">
-                ✏️ Rename
-              </button>
-              <button class="btn-menu-rename" type="button" onclick="openCategorizeModal('${quiz.id}')">
-                📁 Change Subject
-              </button>
-              <button class="btn-menu-delete" type="button" onclick="deleteQuiz('${quiz.id}')">
-                🗑️ Delete
-              </button>
+              <button class="btn-menu-rename" type="button" onclick="openRenameModal('${quiz.id}', '${encodeURIComponent(quiz.title)}')">✏️ Rename</button>
+              <button class="btn-menu-rename" type="button" onclick="openCategorizeModal('${quiz.id}')">📁 Change Subject</button>
+              <button class="btn-menu-delete" type="button" onclick="deleteQuiz('${quiz.id}')">🗑️ Delete</button>
             </div>
           </div>
         </div>
@@ -195,80 +398,117 @@ async function renderQuizList() {
       attachDragEvents(card, listContainer);
       listContainer.appendChild(card);
     });
-
     container.appendChild(frame);
   });
 }
 
+function filterQuizzesRealtime(query) {
+  const term = query.toLowerCase().trim();
+  const cards = document.querySelectorAll(".quiz-card");
+
+  cards.forEach((card) => {
+    const title = card.querySelector("strong")?.innerText.toLowerCase() || "";
+    const subject = card.dataset.subject?.toLowerCase() || "";
+    const matches = title.includes(term) || subject.includes(term);
+    card.style.display = matches ? "flex" : "none";
+  });
+
+  document.querySelectorAll(".subject-frame").forEach((frame) => {
+    const visibleCards = frame.querySelectorAll('.quiz-card:not([style*="display: none"])');
+    frame.style.display = visibleCards.length > 0 ? "block" : "none";
+  });
+}
+
+function toggleSubjectCollapse(safeSubjId) {
+  const frame = document.getElementById(`subject-frame-${safeSubjId}`);
+  if (!frame) return;
+
+  const isCollapsed = frame.classList.toggle("is-collapsed");
+  const pillSpan = frame.querySelector(".subject-toggle-pill span:first-child");
+  const arrow = frame.querySelector(".subject-toggle-arrow");
+  const deckCount = frame.querySelectorAll(".quiz-card").length;
+  const countText = `${deckCount} Deck${deckCount > 1 ? "s" : ""}`;
+
+  if (isCollapsed) {
+    if (pillSpan) pillSpan.innerText = `${countText} (Hidden)`;
+    if (arrow) arrow.innerText = "◀";
+  } else {
+    if (pillSpan) pillSpan.innerText = countText;
+    if (arrow) arrow.innerText = "▼";
+  }
+}
+
+function toggleCardMenu(event, quizId) {
+  event.stopPropagation();
+  const targetDropdown = document.getElementById(`card-menu-${quizId}`);
+  const isOpen = targetDropdown?.classList.contains("show");
+
+  document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
+  if (!isOpen && targetDropdown) targetDropdown.classList.add("show");
+}
+
+document.addEventListener("click", () => {
+  document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
+});
+
+// Drag and Drop Ordering
 let draggedItem = null;
 
 function attachDragEvents(card, container) {
-  const handle = card.querySelector('.quiz-drag-handle') || card;
+  const handle = card.querySelector(".quiz-drag-handle") || card;
 
-  // Desktop Mouse Drag
-  card.addEventListener('dragstart', (e) => {
+  card.addEventListener("dragstart", (e) => {
     draggedItem = card;
-    card.classList.add('is-dragging');
-    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add("is-dragging");
+    e.dataTransfer.effectAllowed = "move";
   });
 
-  card.addEventListener('dragend', () => {
-    card.classList.remove('is-dragging');
+  card.addEventListener("dragend", () => {
+    card.classList.remove("is-dragging");
     draggedItem = null;
-    document.querySelectorAll('.quiz-card').forEach(c => c.classList.remove('drag-over'));
+    document.querySelectorAll(".quiz-card").forEach((c) => c.classList.remove("drag-over"));
     saveReorderedDeckSequence(card.dataset.subject);
   });
 
-  card.addEventListener('dragover', (e) => {
+  card.addEventListener("dragover", (e) => {
     e.preventDefault();
     if (!draggedItem || draggedItem === card) return;
     if (draggedItem.dataset.subject !== card.dataset.subject) return;
 
-    card.classList.add('drag-over');
+    card.classList.add("drag-over");
     const bounding = card.getBoundingClientRect();
     const offset = e.clientY - bounding.top;
-    if (offset > bounding.height / 2) {
-      card.after(draggedItem);
-    } else {
-      card.before(draggedItem);
-    }
+    offset > bounding.height / 2 ? card.after(draggedItem) : card.before(draggedItem);
   });
 
-  card.addEventListener('dragleave', () => {
-    card.classList.remove('drag-over');
+  card.addEventListener("dragleave", () => {
+    card.classList.remove("drag-over");
   });
 
-  // Mobile Touch Drag
-  handle.addEventListener('touchstart', (e) => {
+  handle.addEventListener("touchstart", (e) => {
     draggedItem = card;
-    card.classList.add('is-dragging');
+    card.classList.add("is-dragging");
     if (navigator.vibrate) navigator.vibrate(25);
   }, { passive: true });
 
-  handle.addEventListener('touchmove', (e) => {
+  handle.addEventListener("touchmove", (e) => {
     if (!draggedItem) return;
     const touch = e.touches[0];
     const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
-    const targetCard = targetEl ? targetEl.closest('.quiz-card') : null;
+    const targetCard = targetEl ? targetEl.closest(".quiz-card") : null;
 
     if (targetCard && targetCard !== draggedItem && targetCard.dataset.subject === draggedItem.dataset.subject) {
       const bounding = targetCard.getBoundingClientRect();
       const offset = touch.clientY - bounding.top;
-      
-      if (offset > bounding.height / 2) {
-        targetCard.after(draggedItem);
-      } else {
-        targetCard.before(draggedItem);
-      }
+      offset > bounding.height / 2 ? targetCard.after(draggedItem) : targetCard.before(draggedItem);
     }
   }, { passive: true });
 
-  handle.addEventListener('touchend', () => {
+  handle.addEventListener("touchend", () => {
     if (!draggedItem) return;
-    card.classList.remove('is-dragging');
-    card.classList.add('drop-settle');
-    setTimeout(() => card.classList.remove('drop-settle'), 300);
-
+    card.classList.remove("is-dragging");
+    card.classList.add("drop-settle");
+    setTimeout(() => card.classList.remove("drop-settle"), 300);
     if (navigator.vibrate) navigator.vibrate(15);
     saveReorderedDeckSequence(card.dataset.subject);
     draggedItem = null;
@@ -279,158 +519,51 @@ async function saveReorderedDeckSequence(subjectName) {
   const listEl = document.querySelector(`.subject-quiz-list[data-subject="${subjectName}"]`);
   if (!listEl) return;
 
-  const cardElements = Array.from(listEl.querySelectorAll('.quiz-card'));
-  const updates = [];
-
+  const cardElements = Array.from(listEl.querySelectorAll(".quiz-card"));
   cardElements.forEach((el, index) => {
     const deckId = el.dataset.id;
-    const target = cachedDecks.find(d => d.id === deckId);
-    if (target) {
-      target.sortOrder = index;
-      updates.push(sb.from('quiz_decks').update({ sort_order: index }).eq('id', deckId));
-    }
+    const target = cachedDecks.find((d) => d.id === deckId);
+    if (target) target.sortOrder = index;
   });
-
-  localStorage.setItem('quizzes', JSON.stringify(cachedDecks));
-
-  try {
-    await Promise.all(updates);
-  } catch (err) {
-    console.error("Failed saving reordered decks:", err);
-  }
+  localStorage.setItem("quizzes", JSON.stringify(cachedDecks));
 }
 
-function syncSliderFromInput(val) {
-  const slider = document.getElementById('mode-item-range-slider');
-  const input = document.getElementById('mode-item-count-input');
-  let num = parseInt(val, 10);
-  const max = parseInt(slider.max, 10);
-
-  if (isNaN(num) || num < 1) num = 1;
-  if (num > max) num = max;
-
-  slider.value = num;
-}
-
-function syncInputFromSlider(val) {
-  const input = document.getElementById('mode-item-count-input');
-  if (input) input.value = val;
-}
-
-function launchQuizById(quizId) {
-  const stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  const quiz = stored.find(q => q.id === quizId);
-  if (!quiz) return;
-
-  pendingQuizForMode = quiz;
-  const total = quiz.questions.length;
-
-  const modal = document.getElementById('quiz-mode-modal');
-  const input = document.getElementById('mode-item-count-input');
-  const slider = document.getElementById('mode-item-range-slider');
-  const totalHint = document.getElementById('mode-total-hint');
-  const maxLabel = document.getElementById('slider-max-label');
-
-  if (input && slider) {
-    input.min = 1;
-    input.max = total;
-    input.value = total;
-    slider.min = 1;
-    slider.max = total;
-    slider.value = total;
-    if (totalHint) totalHint.innerText = `/ ${total} items`;
-    if (maxLabel) maxLabel.innerText = `${total} items (All)`;
-  }
-
-  if (modal) {
-    modal.style.display = 'flex';
-  } else {
-    startQuizSession(quiz, 'device');
-  }
-}
-
-function selectQuizMode(mode) {
-  currentQuizMode = mode;
-  const targetQuiz = pendingQuizForMode;
-  const input = document.getElementById('mode-item-count-input');
-  let limit = targetQuiz ? targetQuiz.questions.length : 1;
-  
-  if (input) {
-    const parsed = parseInt(input.value, 10);
-    if (!isNaN(parsed) && parsed >= 1 && parsed <= targetQuiz.questions.length) {
-      limit = parsed;
-    }
-  }
-
-  closeQuizModeModal();
-
-  if (targetQuiz) {
-    const limitedQuizInstance = {
-      ...targetQuiz,
-      totalQuestions: limit,
-      questions: targetQuiz.questions.slice(0, limit)
-    };
-
-    switchView('take');
-    startQuizSession(limitedQuizInstance, mode);
-  }
-}
-
-function closeQuizModeModal() {
-  pendingQuizForMode = null;
-  const modal = document.getElementById('quiz-mode-modal');
-  if (modal) modal.style.display = 'none';
-}
-
+// Rename & Categorization Modals
 function openRenameModal(quizId, encodedTitle) {
   const decodedTitle = decodeURIComponent(encodedTitle);
-  document.getElementById('rename-quiz-id').value = quizId;
-  const titleInput = document.getElementById('rename-quiz-input');
+  document.getElementById("rename-quiz-id").value = quizId;
+  const titleInput = document.getElementById("rename-quiz-input");
   titleInput.value = decodedTitle;
 
-  const targetQuiz = (cachedDecks || []).find(q => q.id === quizId);
-  const subjectInput = document.getElementById('rename-quiz-subject');
-  if (subjectInput) {
-    subjectInput.value = targetQuiz ? (targetQuiz.subject || "General") : "General";
-  }
-  
-  const modal = document.getElementById('rename-modal');
-  modal.style.display = 'flex';
+  const targetQuiz = (cachedDecks || []).find((q) => q.id === quizId);
+  const subjectInput = document.getElementById("rename-quiz-subject");
+  if (subjectInput) subjectInput.value = targetQuiz ? (targetQuiz.subject || "General") : "General";
+
+  const modal = document.getElementById("rename-modal");
+  modal.style.display = "flex";
   titleInput.focus();
   titleInput.select();
 }
 
 function closeRenameModal() {
-  document.getElementById('rename-modal').style.display = 'none';
+  document.getElementById("rename-modal").style.display = "none";
 }
 
 async function saveQuizRename() {
-  const quizId = document.getElementById('rename-quiz-id').value;
-  const newTitle = document.getElementById('rename-quiz-input').value.trim();
-  const newSubject = (document.getElementById('rename-quiz-subject')?.value || "").trim() || "General";
-
+  const quizId = document.getElementById("rename-quiz-id").value;
+  const newTitle = document.getElementById("rename-quiz-input").value.trim();
+  const newSubject = (document.getElementById("rename-quiz-subject")?.value || "").trim() || "General";
   if (!newTitle) return;
 
-  try {
-    const { error } = await sb
-      .from('quiz_decks')
-      .update({ title: newTitle, subject: newSubject })
-      .eq('id', quizId);
-
-    if (error) console.error("Cloud rename failed:", error);
-  } catch (err) {
-    console.error("Cloud rename request error:", err);
-  }
-
-  const stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  const targetQuiz = stored.find(q => q.id === quizId);
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const targetQuiz = stored.find((q) => q.id === quizId);
   if (targetQuiz) {
     targetQuiz.title = newTitle;
     targetQuiz.subject = newSubject;
-    localStorage.setItem('quizzes', JSON.stringify(stored));
+    localStorage.setItem("quizzes", JSON.stringify(stored));
   }
 
-  const targetCached = (cachedDecks || []).find(q => q.id === quizId);
+  const targetCached = (cachedDecks || []).find((q) => q.id === quizId);
   if (targetCached) {
     targetCached.title = newTitle;
     targetCached.subject = newSubject;
@@ -442,41 +575,158 @@ async function saveQuizRename() {
   updateDashboardMetrics();
 }
 
-async function deleteQuiz(quizId) {
-  if (!confirm("Are you sure you want to remove this quiz from your library across all devices?")) return;
-  
-  try {
-    await sb.from('quiz_decks').delete().eq('id', quizId);
-  } catch(err) {
-    console.error("Cloud deck delete failed:", err);
+function openCategorizeModal(quizId) {
+  document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
+  const targetQuiz = (cachedDecks || []).find((q) => q.id === quizId);
+  if (!targetQuiz) return;
+
+  document.getElementById("categorize-quiz-id").value = quizId;
+  const input = document.getElementById("categorize-subject-input");
+  const select = document.getElementById("categorize-subject-select");
+  const currentSubject = targetQuiz.subject || "General";
+
+  input.value = currentSubject;
+  const uniqueSubjects = Array.from(new Set((cachedDecks || []).map((d) => d.subject || "General")));
+
+  select.innerHTML = '<option value="">-- Choose Existing Subject --</option>';
+  uniqueSubjects.forEach((subj) => {
+    const opt = document.createElement("option");
+    opt.value = subj;
+    opt.innerText = subj;
+    if (subj.toLowerCase() === currentSubject.toLowerCase()) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  const modal = document.getElementById("categorize-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function syncCategorizeInput(val) {
+  if (val) document.getElementById("categorize-subject-input").value = val;
+}
+
+function closeCategorizeModal() {
+  const modal = document.getElementById("categorize-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveSubjectCategorization() {
+  const quizId = document.getElementById("categorize-quiz-id").value;
+  const newSubject = (document.getElementById("categorize-subject-input").value || "").trim() || "General";
+  if (!quizId) return;
+
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const target = stored.find((q) => q.id === quizId);
+  if (target) {
+    target.subject = newSubject;
+    localStorage.setItem("quizzes", JSON.stringify(stored));
   }
 
-  let stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  stored = stored.filter(q => q.id !== quizId);
-  localStorage.setItem('quizzes', JSON.stringify(stored));
-  cachedDecks = cachedDecks.filter(q => q.id !== quizId);
-  
+  const cachedTarget = (cachedDecks || []).find((q) => q.id === quizId);
+  if (cachedTarget) cachedTarget.subject = newSubject;
+
+  closeCategorizeModal();
   await renderQuizList();
   updateDashboardMetrics();
 }
 
-// --- Module: Quiz Runner Execution ---
-function startQuizSession(quiz, mode = "device") {
-  // Enter full distraction-free focus mode
-  document.querySelector('.app-container')?.classList.add('quiz-focus-mode');
+async function deleteQuiz(quizId) {
+  if (!confirm("Are you sure you want to remove this quiz from your local library?")) return;
 
+  let stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  stored = stored.filter((q) => q.id !== quizId);
+  localStorage.setItem("quizzes", JSON.stringify(stored));
+  cachedDecks = cachedDecks.filter((q) => q.id !== quizId);
+
+  await renderQuizList();
+  updateDashboardMetrics();
+}
+
+/* --------------------------------------------------------------------------
+   7. QUIZ EXECUTION ENGINE
+   -------------------------------------------------------------------------- */
+function launchQuizById(quizId) {
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const quiz = stored.find((q) => q.id === quizId);
+  if (!quiz) return;
+
+  pendingQuizForMode = quiz;
+  const total = quiz.questions.length;
+  const modal = document.getElementById("quiz-mode-modal");
+  const input = document.getElementById("mode-item-count-input");
+  const slider = document.getElementById("mode-item-range-slider");
+  const totalHint = document.getElementById("mode-total-hint");
+  const maxLabel = document.getElementById("slider-max-label");
+
+  if (input && slider) {
+    input.min = 1; input.max = total; input.value = total;
+    slider.min = 1; slider.max = total; slider.value = total;
+    if (totalHint) totalHint.innerText = `/ ${total} items`;
+    if (maxLabel) maxLabel.innerText = `${total} items (All)`;
+  }
+
+  modal ? (modal.style.display = "flex") : startQuizSession(quiz, "device");
+}
+
+function syncSliderFromInput(val) {
+  const slider = document.getElementById("mode-item-range-slider");
+  let num = parseInt(val, 10);
+  const max = parseInt(slider.max, 10);
+  if (isNaN(num) || num < 1) num = 1;
+  if (num > max) num = max;
+  slider.value = num;
+}
+
+function syncInputFromSlider(val) {
+  const input = document.getElementById("mode-item-count-input");
+  if (input) input.value = val;
+}
+
+function selectQuizMode(mode) {
+  currentQuizMode = mode;
+  const targetQuiz = pendingQuizForMode;
+  const input = document.getElementById("mode-item-count-input");
+  let limit = targetQuiz ? targetQuiz.questions.length : 1;
+
+  if (input) {
+    const parsed = parseInt(input.value, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= targetQuiz.questions.length) {
+      limit = parsed;
+    }
+  }
+
+  closeQuizModeModal();
+  if (targetQuiz) {
+    const limitedInstance = {
+      ...targetQuiz,
+      totalQuestions: limit,
+      questions: targetQuiz.questions.slice(0, limit),
+    };
+    switchView("take");
+    startQuizSession(limitedInstance, mode);
+  }
+}
+
+function closeQuizModeModal() {
+  pendingQuizForMode = null;
+  const modal = document.getElementById("quiz-mode-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function startQuizSession(quiz, mode = "device") {
+  document.querySelector(".app-container")?.classList.add("quiz-focus-mode");
   activeQuizInstance = quiz;
   currentQuizMode = mode;
   currentQuestionIdx = 0;
   flaggedQuestions.clear();
   userAnswers = {};
 
-  document.getElementById('quiz-deck-view').style.display = 'none';
-  document.getElementById('quiz-result-summary').style.display = 'none';
-  document.getElementById('quiz-active-runner').style.display = 'block';
+  document.getElementById("quiz-deck-view").style.display = "none";
+  document.getElementById("quiz-result-summary").style.display = "none";
+  document.getElementById("quiz-active-runner").style.display = "block";
 
-  const modeBadge = mode === 'paper' ? ' [Pen & Paper]' : '';
-  document.getElementById('active-quiz-title').innerText = quiz.title + modeBadge;
+  const modeBadge = mode === "paper" ? " [Pen & Paper]" : "";
+  document.getElementById("active-quiz-title").innerText = quiz.title + modeBadge;
 
   renderActiveQuestion();
 }
@@ -485,42 +735,36 @@ function renderActiveQuestion() {
   const q = activeQuizInstance.questions[currentQuestionIdx];
   const total = activeQuizInstance.questions.length;
 
-  document.getElementById('active-progress').innerText = `Question ${currentQuestionIdx + 1} of ${total}`;
-  document.getElementById('active-q-text').innerText = `${q.id}. ${q.question}`;
+  document.getElementById("active-progress").innerText = `Question ${currentQuestionIdx + 1} of ${total}`;
+  document.getElementById("active-q-text").innerText = `${q.id}. ${q.question}`;
 
-  const optionsBox = document.getElementById('active-options-list');
+  const optionsBox = document.getElementById("active-options-list");
   optionsBox.innerHTML = "";
 
-  q.options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'option-select-btn';
+  q.options.forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "option-select-btn";
 
-    if (currentQuizMode === 'paper') {
-      btn.classList.add('paper-mode');
+    if (currentQuizMode === "paper") {
+      btn.classList.add("paper-mode");
       btn.innerHTML = `<strong>${opt.letter.toUpperCase()}.</strong> <span>${opt.text}</span>`;
     } else {
-      if (userAnswers[currentQuestionIdx] === opt.letter) {
-        btn.classList.add('selected');
-      }
+      if (userAnswers[currentQuestionIdx] === opt.letter) btn.classList.add("selected");
       btn.innerHTML = `<strong>${opt.letter.toUpperCase()}.</strong> <span>${opt.text}</span>`;
       btn.onclick = () => selectOption(opt.letter);
     }
-
     optionsBox.appendChild(btn);
   });
 
-  document.getElementById('btn-prev-q').style.visibility = currentQuestionIdx === 0 ? 'hidden' : 'visible';
-  
+  document.getElementById("btn-prev-q").style.visibility = currentQuestionIdx === 0 ? "hidden" : "visible";
   const isLast = currentQuestionIdx === total - 1;
-  document.getElementById('btn-next-q').style.display = isLast ? 'none' : 'inline-block';
-  document.getElementById('btn-finish-q').style.display = isLast ? 'inline-block' : 'none';
+  document.getElementById("btn-next-q").style.display = isLast ? "none" : "inline-block";
+  document.getElementById("btn-finish-q").style.display = isLast ? "inline-block" : "none";
 
-  const expBox = document.getElementById('active-explanation');
-  expBox.style.display = 'none';
+  const expBox = document.getElementById("active-explanation");
+  expBox.style.display = "none";
   expBox.innerText = "";
-
-  // Synchronize the flag button state for the current item
   updateFlagButtonUI();
 }
 
@@ -536,126 +780,113 @@ function changeQuestion(step) {
 
 function checkCurrentAnswer() {
   const q = activeQuizInstance.questions[currentQuestionIdx];
-  const expBox = document.getElementById('active-explanation');
-  
+  const expBox = document.getElementById("active-explanation");
   let html = "";
-  if (q.answer) {
-    html += `<strong>Correct Answer:</strong> Option ${q.answer.toUpperCase()}<br/>`;
-  }
-  if (q.explanation) {
-    html += `<strong>Rationale:</strong> ${q.explanation}`;
-  } else if (!q.answer) {
-    html += `<em>No key/rationale provided for this item.</em>`;
-  }
+
+  if (q.answer) html += `<strong>Correct Answer:</strong> Option ${q.answer.toUpperCase()}<br/>`;
+  if (q.explanation) html += `<strong>Rationale:</strong> ${q.explanation}`;
+  if (!q.answer) html += `<em>No key/rationale provided for this item.</em>`;
 
   expBox.innerHTML = html;
-  expBox.style.display = 'block';
+  expBox.style.display = "block";
 }
 
-let currentSummaryReviewItems = [];
+function toggleCurrentFlag() {
+  const idx = parseInt(currentQuestionIdx, 10);
+  flaggedQuestions.has(idx) ? flaggedQuestions.delete(idx) : flaggedQuestions.add(idx);
+  updateFlagButtonUI();
+}
 
+function updateFlagButtonUI() {
+  const btn = document.getElementById("btn-flag-q");
+  const icon = document.getElementById("flag-icon");
+  const label = document.getElementById("flag-label");
+  if (!btn) return;
+
+  const idx = parseInt(currentQuestionIdx, 10);
+  const isFlagged = flaggedQuestions.has(idx);
+  btn.classList.toggle("is-flagged", isFlagged);
+  if (icon) icon.innerText = isFlagged ? "🚩" : "🏳️";
+  if (label) label.innerText = isFlagged ? "Flagged" : "Flag";
+}
+
+function exitQuizRunner() {
+  if (currentQuizMode === "paper" && activeQuizInstance && document.getElementById("quiz-active-runner").style.display !== "none") {
+    openPaperScoreModal();
+  } else {
+    finishAndReturnToLibrary();
+  }
+}
+
+function finishAndReturnToLibrary() {
+  document.querySelector(".app-container")?.classList.remove("quiz-focus-mode");
+  document.getElementById("quiz-active-runner").style.display = "none";
+  document.getElementById("quiz-result-summary").style.display = "none";
+  document.getElementById("quiz-deck-view").style.display = "block";
+  activeQuizInstance = null;
+  updateDashboardMetrics();
+}
+
+// On-Device Attempt Submission
 async function submitQuizAttempt() {
   if (!activeQuizInstance || !activeQuizInstance.questions) return;
 
   const total = activeQuizInstance.questions.length;
   let score = 0;
   const reviewItems = [];
-  const flaggedArray = Array.from(flaggedQuestions).map(n => Number(n));
+  const flaggedArray = Array.from(flaggedQuestions).map((n) => Number(n));
 
   activeQuizInstance.questions.forEach((q, idx) => {
     const userChoice = userAnswers[idx];
     const isCorrect = userChoice && q.answer && userChoice.toLowerCase() === q.answer.toLowerCase();
     const isFlagged = flaggedQuestions.has(idx);
 
-    if (isCorrect) {
-      score++;
-    }
-
+    if (isCorrect) score++;
     reviewItems.push({
       ...q,
       originalIndex: idx,
       isCorrect: !!isCorrect,
       isFlagged: !!isFlagged,
-      chosenAnswer: userChoice || null
+      chosenAnswer: userChoice || null,
     });
   });
 
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+  const scoreDisplay = document.getElementById("result-score-display") || document.getElementById("summary-score-text");
+  if (scoreDisplay) scoreDisplay.innerText = `${score} / ${total} (${pct}%)`;
 
-  // 1. Update score header safely
-  const scoreDisplay = document.getElementById('result-score-display') || document.getElementById('summary-score-text');
-  if (scoreDisplay) {
-    scoreDisplay.innerText = `${score} / ${total} (${pct}%)`;
-  }
-
-  // 2. Prepare the attempt object
   const record = {
     id: "rec_" + Date.now(),
     title: activeQuizInstance.title,
     date: new Date().toISOString().split("T")[0],
     score: `${score} / ${total}`,
     percentage: `${pct}%`,
-    mode: currentQuizMode || 'device',
+    mode: currentQuizMode || "device",
     mistakesCount: total - score,
-    mistakenIndices: reviewItems.filter(i => !i.isCorrect).map(i => i.originalIndex),
+    mistakenIndices: reviewItems.filter((i) => !i.isCorrect).map((i) => i.originalIndex),
     flaggedIndices: flaggedArray,
     questions: activeQuizInstance.questions,
-    userAnswers: userAnswers
+    userAnswers: userAnswers,
   };
 
-  // 3. Guarantee LocalStorage persistence FIRST
   try {
-    const localRecords = JSON.parse(localStorage.getItem('quiz_records') || '[]');
+    const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
     localRecords.unshift(record);
-    localStorage.setItem('quiz_records', JSON.stringify(localRecords));
+    localStorage.setItem("quiz_records", JSON.stringify(localRecords));
     currentRecordsCache = localRecords;
   } catch (err) {
-    console.error("Local storage record save error:", err);
+    console.error("Local storage save error:", err);
   }
 
-  // 4. Save to Supabase Cloud with fallback handling
-  try {
-    const payload = {
-      id: record.id,
-      title: record.title,
-      date: record.date,
-      score: record.score,
-      percentage: record.percentage,
-      mode: record.mode,
-      mistakes_count: record.mistakesCount,
-      mistaken_indices: record.mistakenIndices,
-      flagged_indices: record.flaggedIndices,
-      questions: record.questions,
-      user_answers: record.userAnswers
-    };
-
-    const { error: sbError } = await sb.from('quiz_records').insert(payload);
-    if (sbError) {
-      console.warn("Supabase record insert error (retrying without flagged_indices):", sbError.message);
-      // Fallback in case Supabase table doesn't have the column yet
-      delete payload.flagged_indices;
-      await sb.from('quiz_records').insert(payload);
-    }
-  } catch (err) {
-    console.warn("Cloud push failed, keeping local copy:", err);
-  }
-
-  // 5. Populate end summary screen
   currentSummaryReviewItems = reviewItems;
-  if (typeof updateSummaryFilterPillCounts === 'function') {
-    updateSummaryFilterPillCounts(reviewItems);
-  }
-  if (typeof filterSummaryReview === 'function') {
-    filterSummaryReview('all');
-  }
+  updateSummaryFilterPillCounts(reviewItems);
+  filterSummaryReview("all");
 
-  // 6. Transition Runner -> Summary View
-  const runner = document.getElementById('quiz-active-runner');
-  const summary = document.getElementById('quiz-result-summary');
-  if (runner) runner.style.display = 'none';
-  if (summary) summary.style.display = 'block';
+  const runner = document.getElementById("quiz-active-runner");
+  const summary = document.getElementById("quiz-result-summary");
+  if (runner) runner.style.display = "none";
+  if (summary) summary.style.display = "block";
 
-  // 7. Refresh records cache and counters safely
   try {
     updateRecordFilterCounts(currentRecordsCache);
     renderFilteredRecordsRows();
@@ -665,208 +896,35 @@ async function submitQuizAttempt() {
   updateDashboardMetrics();
 }
 
-function updateSummaryFilterPillCounts(items) {
-  const allCount = items.length;
-  const correctCount = items.filter(i => i.isCorrect).length;
-  const incorrectCount = items.filter(i => !i.isCorrect).length;
-  const flaggedCount = items.filter(i => i.isFlagged).length;
-
-  const setEl = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.innerText = val;
-  };
-
-  setEl('filter-count-all', allCount);
-  setEl('filter-count-correct', correctCount);
-  setEl('filter-count-incorrect', incorrectCount);
-  setEl('filter-count-flagged', flaggedCount);
-}
-
-function filterSummaryReview(filterType) {
-  // Update active pill button state
-  document.querySelectorAll('.summary-filter-pills .summary-pill').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterType}'`));
-  });
-
-  const sourceItems = Array.isArray(currentSummaryReviewItems) ? currentSummaryReviewItems : [];
-  let filtered = sourceItems;
-
-  if (filterType === 'correct') {
-    filtered = sourceItems.filter(i => i.isCorrect);
-  } else if (filterType === 'incorrect') {
-    filtered = sourceItems.filter(i => !i.isCorrect);
-  } else if (filterType === 'flagged') {
-    filtered = sourceItems.filter(i => i.isFlagged);
-  }
-
-  renderSummaryReviewItems(filtered);
-}
-
-function renderSummaryReviewItems(items) {
-  const container = document.getElementById('summary-wrong-items-container');
-  const list = document.getElementById('summary-wrong-items-list');
-
-  if (!container || !list) return;
-
-  // 1. ALWAYS keep container visible so filter buttons never disappear
-  container.style.display = 'block';
-  list.innerHTML = '';
-
-  // 2. Render clean empty-state placeholder instead of hiding the container
-  if (!items || items.length === 0) {
-    list.innerHTML = `
-      <div style="text-align: center; padding: 32px 16px; background: var(--surface-alt); border-radius: 16px; border: 1px dashed var(--border-subtle); margin-top: 8px;">
-        <p style="color: var(--text-muted); font-size: 0.92rem; font-weight: 600;">No questions found under this filter.</p>
-      </div>
-    `;
-    return;
-  }
-
-  items.forEach(q => {
-    const card = document.createElement('div');
-    
-    // Prevent clicks inside cards from bubbling to parent handlers
-    card.onclick = (e) => e.stopPropagation();
-
-    // Determine card styling based on correct/wrong/flagged state
-    let cardClass = 'review-item-card';
-    if (q.isFlagged) {
-      cardClass += ' is-flagged';
-    } else if (q.isCorrect) {
-      cardClass += ' is-correct';
-    } else {
-      cardClass += ' is-wrong';
-    }
-    card.className = cardClass;
-
-    let optionsHtml = q.options.map(opt => {
-      let extraClass = '';
-      let labelTag = '';
-
-      if (q.chosenAnswer && opt.letter.toLowerCase() === q.chosenAnswer.toLowerCase()) {
-        if (q.isCorrect) {
-          extraClass = 'is-answer';
-          labelTag = ' <strong>(Your Answer - Correct)</strong>';
-        } else {
-          extraClass = 'user-wrong';
-          labelTag = ' <strong>(Your Answer)</strong>';
-        }
-      } else if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
-        extraClass = 'is-answer';
-        labelTag = ' <strong>(Correct Answer)</strong>';
-      }
-
-      return `<div class="review-opt-row ${extraClass}">
-        <span>${opt.letter.toUpperCase()}.</span>
-        <span>${opt.text}${labelTag}</span>
-      </div>`;
-    }).join('');
-
-    // Status badges
-    let badgesHtml = '';
-    if (q.isFlagged) {
-      badgesHtml += `<span class="review-item-badge badge-flagged">🚩 Flagged</span> `;
-    }
-    if (q.isCorrect) {
-      badgesHtml += `<span class="review-item-badge badge-correct">Question ${q.id} &bull; Correct</span>`;
-    } else {
-      badgesHtml += `<span class="review-item-badge badge-wrong">Question ${q.id} &bull; Incorrect</span>`;
-    }
-
-    card.innerHTML = `
-      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-        ${badgesHtml}
-      </div>
-      <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.id}. ${q.question}</div>
-      <div class="review-options-list">${optionsHtml}</div>
-      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
-    `;
-    list.appendChild(card);
-  });
-}
-
-function renderPaperSummary(questions) {
-  const container = document.getElementById('summary-wrong-items-container');
-  const list = document.getElementById('summary-wrong-items-list');
-  const badge = document.getElementById('wrong-count-badge');
-
-  if (!container || !list) return;
-  list.innerHTML = '';
-  if (badge) {
-    badge.innerText = `Answer Key (${questions.length} Items)`;
-    badge.style.background = "var(--accent-mint)";
-    badge.style.color = "var(--primary)";
-  }
-  container.style.display = 'block';
-
-  questions.forEach(q => {
-    const card = document.createElement('div');
-    card.className = 'review-item-card';
-
-    let optionsHtml = q.options.map(opt => {
-      const isCorrect = q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase();
-      return `<div class="review-opt-row ${isCorrect ? 'is-answer' : 'paper-neutral'}">
-        <span>${opt.letter.toUpperCase()}.</span>
-        <span>${opt.text}${isCorrect ? ' <strong>(Correct Key)</strong>' : ''}</span>
-      </div>`;
-    }).join('');
-
-    card.innerHTML = `
-      <span class="review-item-badge badge-paper">Question ${q.id} &bull; Answer Key</span>
-      <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.question}</div>
-      <div class="review-options-list">${optionsHtml}</div>
-      ${q.explanation ? `<div class="explanation-callout"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
-    `;
-    list.appendChild(card);
-  });
-}
-
-function exitQuizRunner() {
-  if (currentQuizMode === 'paper' && activeQuizInstance && document.getElementById('quiz-active-runner').style.display !== 'none') {
-    openPaperScoreModal();
-  } else {
-    finishAndReturnToLibrary();
-  }
-}
-
-// --- Module: Pen & Paper Itemized Mistakes Logger ---
+/* --------------------------------------------------------------------------
+   8. PEN & PAPER MODE HANDLERS
+   -------------------------------------------------------------------------- */
 function openPaperScoreModal() {
   if (!activeQuizInstance) return;
   const total = activeQuizInstance.questions.length;
   selectedPaperMistakes.clear();
 
-  const container = document.getElementById('paper-items-grid');
+  const container = document.getElementById("paper-items-grid");
   if (!container) return;
-  container.innerHTML = '';
+  container.innerHTML = "";
 
   const baseSize = Math.floor(total / 3);
   const remainder = total % 3;
-  const colSizes = [
-    baseSize + (remainder > 0 ? 1 : 0),
-    baseSize + (remainder > 1 ? 1 : 0),
-    baseSize
-  ];
-
+  const colSizes = [baseSize + (remainder > 0 ? 1 : 0), baseSize + (remainder > 1 ? 1 : 0), baseSize];
   let currentItemIdx = 0;
 
   for (let c = 0; c < 3; c++) {
-    const colDiv = document.createElement('div');
-    colDiv.className = 'paper-col';
-
+    const colDiv = document.createElement("div");
+    colDiv.className = "paper-col";
     for (let i = 0; i < colSizes[c]; i++) {
       if (currentItemIdx >= total) break;
-      
       const qIndex = currentItemIdx;
       const qNum = currentItemIdx + 1;
 
-      const itemCard = document.createElement('div');
-      itemCard.className = 'mistake-check-item';
+      const itemCard = document.createElement("div");
+      itemCard.className = "mistake-check-item";
       itemCard.id = `paper-item-${qIndex}`;
-      itemCard.innerHTML = `
-        <span>Item ${qNum}</span>
-        <div class="mistake-box"></div>
-      `;
-
+      itemCard.innerHTML = `<span>Item ${qNum}</span><div class="mistake-box"></div>`;
       itemCard.onclick = () => togglePaperMistake(qIndex);
       colDiv.appendChild(itemCard);
       currentItemIdx++;
@@ -875,32 +933,29 @@ function openPaperScoreModal() {
   }
 
   updatePaperMistakeSummary(total);
-
-  const modal = document.getElementById('paper-score-modal');
-  if (modal) modal.style.display = 'flex';
+  const modal = document.getElementById("paper-score-modal");
+  if (modal) modal.style.display = "flex";
 }
 
 function togglePaperMistake(index) {
   const itemEl = document.getElementById(`paper-item-${index}`);
   if (selectedPaperMistakes.has(index)) {
     selectedPaperMistakes.delete(index);
-    if (itemEl) itemEl.classList.remove('is-wrong');
+    if (itemEl) itemEl.classList.remove("is-wrong");
   } else {
     selectedPaperMistakes.add(index);
-    if (itemEl) itemEl.classList.add('is-wrong');
+    if (itemEl) itemEl.classList.add("is-wrong");
   }
-
   const total = activeQuizInstance ? activeQuizInstance.questions.length : 0;
   updatePaperMistakeSummary(total);
 }
 
 function updatePaperMistakeSummary(total) {
-  const summaryEl = document.getElementById('paper-mistake-summary');
+  const summaryEl = document.getElementById("paper-mistake-summary");
   if (!summaryEl) return;
   const mistakes = selectedPaperMistakes.size;
   const score = total - mistakes;
   const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
-
   summaryEl.innerHTML = `Score: <strong>${score} / ${total} (${percentage}%)</strong> &bull; Mistakes: <strong>${mistakes}</strong>`;
 }
 
@@ -912,11 +967,7 @@ async function confirmPaperScoreLogging() {
 
   const syntheticAnswers = {};
   activeQuizInstance.questions.forEach((q, idx) => {
-    if (selectedPaperMistakes.has(idx)) {
-      syntheticAnswers[idx] = "__WRONG__";
-    } else {
-      syntheticAnswers[idx] = q.answer ? q.answer.toLowerCase() : "correct";
-    }
+    syntheticAnswers[idx] = selectedPaperMistakes.has(idx) ? "__WRONG__" : (q.answer ? q.answer.toLowerCase() : "correct");
   });
 
   const record = {
@@ -929,29 +980,12 @@ async function confirmPaperScoreLogging() {
     mistakesCount: mistakes,
     mistakenIndices: Array.from(selectedPaperMistakes),
     questions: activeQuizInstance.questions,
-    userAnswers: syntheticAnswers
+    userAnswers: syntheticAnswers,
   };
 
-  try {
-    await sb.from('quiz_records').insert({
-      id: record.id,
-      title: record.title,
-      date: record.date,
-      score: record.score,
-      percentage: record.percentage,
-      mode: record.mode,
-      mistakes_count: record.mistakesCount,
-      mistaken_indices: record.mistakenIndices,
-      questions: record.questions,
-      user_answers: record.userAnswers
-    });
-  } catch (err) {
-    console.error("Cloud save failed:", err);
-  }
-
-  const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
+  const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
   records.unshift(record);
-  localStorage.setItem('quiz_records', JSON.stringify(records));
+  localStorage.setItem("quiz_records", JSON.stringify(records));
 
   await renderRecordsTable();
   updateDashboardMetrics();
@@ -960,8 +994,8 @@ async function confirmPaperScoreLogging() {
 }
 
 function closePaperScoreModal() {
-  const modal = document.getElementById('paper-score-modal');
-  if (modal) modal.style.display = 'none';
+  const modal = document.getElementById("paper-score-modal");
+  if (modal) modal.style.display = "none";
 }
 
 function skipPaperScoreLogging() {
@@ -969,209 +1003,155 @@ function skipPaperScoreLogging() {
   finishAndReturnToLibrary();
 }
 
-function finishAndReturnToLibrary() {
-  // Exit focus mode and restore sidebar, topbar, and metrics
-  document.querySelector('.app-container')?.classList.remove('quiz-focus-mode');
-
-  document.getElementById('quiz-active-runner').style.display = 'none';
-  document.getElementById('quiz-result-summary').style.display = 'none';
-  document.getElementById('quiz-deck-view').style.display = 'block';
-  activeQuizInstance = null;
-  updateDashboardMetrics();
-}
-
-let currentRecordsCache = [];
-let currentRecordsFilter = 'all';
-
-// --- Module: Quiz Records Table ---
-async function renderRecordsTable() {
-  const tbody = document.getElementById('records-table-body');
-  if (!tbody) return;
-
-  tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 18px;">Syncing latest records...</td></tr>`;
-
-  let records = [];
-
-  try {
-    const { data, error } = await sb
-      .from('quiz_records')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    records = (data || []).map(r => ({
-      id: r.id,
-      title: r.title,
-      date: r.date,
-      score: r.score,
-      percentage: r.percentage,
-      mode: r.mode || 'device',
-      mistakesCount: r.mistakes_count,
-      mistakenIndices: r.mistaken_indices,
-      flaggedIndices: r.flagged_indices || r.flaggedIndices || [],
-      questions: r.questions,
-      userAnswers: r.user_answers
-    }));
-
-    localStorage.setItem('quiz_records', JSON.stringify(records));
-  } catch (err) {
-    console.warn("Using local cache:", err.message);
-    records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-  }
-
-  currentRecordsCache = records;
-  updateRecordFilterCounts(records);
-  renderFilteredRecordsRows();
-  updateDashboardMetrics();
-}
-
-function updateRecordFilterCounts(records) {
-  const safeRecords = Array.isArray(records) ? records : [];
-  const total = safeRecords.length;
-  const deviceCount = safeRecords.filter(r => (r.mode || 'device') === 'device').length;
-  const paperCount = safeRecords.filter(r => r.mode === 'paper').length;
-
+/* --------------------------------------------------------------------------
+   9. RESULT BREAKDOWN & ATTEMPT REVIEW
+   -------------------------------------------------------------------------- */
+function updateSummaryFilterPillCounts(items) {
   const setEl = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.innerText = val;
   };
-
-  setEl('record-count-all', total);
-  setEl('record-count-device', deviceCount);
-  setEl('record-count-paper', paperCount);
+  setEl("filter-count-all", items.length);
+  setEl("filter-count-correct", items.filter((i) => i.isCorrect).length);
+  setEl("filter-count-incorrect", items.filter((i) => !i.isCorrect).length);
+  setEl("filter-count-flagged", items.filter((i) => i.isFlagged).length);
 }
 
-function filterRecordsTable(filterMode) {
-  currentRecordsFilter = filterMode;
-
-  document.querySelectorAll('.records-filter-pills .summary-pill').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterMode}'`));
+function filterSummaryReview(filterType) {
+  document.querySelectorAll(".summary-filter-pills .summary-pill").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("onclick").includes(`'${filterType}'`));
   });
 
-  renderFilteredRecordsRows();
+  const sourceItems = Array.isArray(currentSummaryReviewItems) ? currentSummaryReviewItems : [];
+  let filtered = sourceItems;
+
+  if (filterType === "correct") filtered = sourceItems.filter((i) => i.isCorrect);
+  else if (filterType === "incorrect") filtered = sourceItems.filter((i) => !i.isCorrect);
+  else if (filterType === "flagged") filtered = sourceItems.filter((i) => i.isFlagged);
+
+  renderSummaryReviewItems(filtered);
 }
 
-function renderFilteredRecordsRows() {
-  const tbody = document.getElementById('records-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderSummaryReviewItems(items) {
+  const container = document.getElementById("summary-wrong-items-container");
+  const list = document.getElementById("summary-wrong-items-list");
+  if (!container || !list) return;
 
-  let items = currentRecordsCache;
-  if (currentRecordsFilter !== 'all') {
-    items = currentRecordsCache.filter(r => (r.mode || 'device') === currentRecordsFilter);
-  }
+  container.style.display = "block";
+  list.innerHTML = "";
 
-  if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No records found under this filter.</td></tr>`;
+  if (!items || items.length === 0) {
+    list.innerHTML = `
+      <div style="text-align: center; padding: 32px 16px; background: var(--surface-alt); border-radius: 16px; border: 1px dashed var(--border-subtle); margin-top: 8px;">
+        <p style="color: var(--text-muted); font-size: 0.92rem; font-weight: 600;">No questions found under this filter.</p>
+      </div>`;
     return;
   }
 
-  items.forEach((r, idx) => {
-    const recordId = r.id || `rec_${idx}`;
-    const row = document.createElement('tr');
-    
-    row.onclick = (e) => {
-      if (e.target.closest('button')) return;
-      openFullAttemptReview(recordId);
-    };
+  items.forEach((q) => {
+    const card = document.createElement("div");
+    card.onclick = (e) => e.stopPropagation();
 
-    const modeBadge = r.mode === 'paper' 
-      ? `<span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; background: var(--surface-alt); border: 1px solid var(--border-subtle); color: var(--text-muted); margin-left: 6px;">Paper</span>`
-      : '';
+    let cardClass = "review-item-card";
+    if (q.isFlagged) cardClass += " is-flagged";
+    else if (q.isCorrect) cardClass += " is-correct";
+    else cardClass += " is-wrong";
+    card.className = cardClass;
 
-    row.innerHTML = `
-      <td><strong>${r.title}</strong> ${modeBadge}</td>
-      <td>${r.date}</td>
-      <td>${r.score}</td>
-      <td><span style="color: var(--primary); font-weight: 800;">${r.percentage}</span></td>
-      <td style="text-align: center;">
-        <button class="btn btn-danger" style="padding: 5px 12px; font-size: 0.8rem; white-space: nowrap;" type="button" onclick="handleDeleteRecordClick('${recordId}', ${idx})">
-          Delete
-        </button>
-      </td>
+    const optionsHtml = q.options.map((opt) => {
+      let extraClass = "";
+      let labelTag = "";
+      if (q.chosenAnswer && opt.letter.toLowerCase() === q.chosenAnswer.toLowerCase()) {
+        extraClass = q.isCorrect ? "is-answer" : "user-wrong";
+        labelTag = q.isCorrect ? " <strong>(Your Answer - Correct)</strong>" : " <strong>(Your Answer)</strong>";
+      } else if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
+        extraClass = "is-answer";
+        labelTag = " <strong>(Correct Answer)</strong>";
+      }
+      return `<div class="review-opt-row ${extraClass}"><span>${opt.letter.toUpperCase()}.</span><span>${opt.text}${labelTag}</span></div>`;
+    }).join("");
+
+    let badgesHtml = q.isFlagged ? `<span class="review-item-badge badge-flagged">🚩 Flagged</span> ` : "";
+    badgesHtml += q.isCorrect
+      ? `<span class="review-item-badge badge-correct">Question ${q.id} &bull; Correct</span>`
+      : `<span class="review-item-badge badge-wrong">Question ${q.id} &bull; Incorrect</span>`;
+
+    card.innerHTML = `
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">${badgesHtml}</div>
+      <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.id}. ${q.question}</div>
+      <div class="review-options-list">${optionsHtml}</div>
+      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ""}
     `;
-    tbody.appendChild(row);
+    list.appendChild(card);
   });
 }
 
-let currentActiveAttemptRecord = null;
-let currentAttemptFilter = 'all';
-
+// Full Historical Review Screen
 function openFullAttemptReview(recordId) {
-  const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-  const record = records.find(r => r.id === recordId);
+  const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+  const record = records.find((r) => r.id === recordId);
   if (!record || !record.questions) {
     alert("Full question breakdown not available for this record.");
     return;
   }
 
   currentActiveAttemptRecord = record;
+  document.getElementById("review-panel-title").innerText = `Review: ${record.title}`;
+  document.getElementById("review-panel-subtitle").innerText = `Attempted on ${record.date}`;
+  document.getElementById("review-score-text").innerText = record.score;
+  document.getElementById("review-accuracy-text").innerText = record.percentage;
 
-  document.getElementById('review-panel-title').innerText = `Review: ${record.title}`;
-  document.getElementById('review-panel-subtitle').innerText = `Attempted on ${record.date}`;
-  document.getElementById('review-score-text').innerText = record.score;
-  document.getElementById('review-accuracy-text').innerText = record.percentage;
-
-  // Calculate Pill Counts
-  const isPaperMode = record.mode === 'paper';
+  const isPaperMode = record.mode === "paper";
   const total = record.questions.length;
   const rawFlags = record.flaggedIndices || record.flagged_indices || [];
-  const flaggedSet = new Set(rawFlags.map(n => Number(n)));
-  
+  const flaggedSet = new Set(rawFlags.map((n) => Number(n)));
   let correctCount = 0;
   let mistakesCount = 0;
 
   record.questions.forEach((q, idx) => {
     let isCorrect = false;
     if (isPaperMode) {
-      const isMistake = record.mistakenIndices 
-        ? record.mistakenIndices.includes(idx) 
+      const isMistake = record.mistakenIndices
+        ? record.mistakenIndices.includes(idx)
         : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
       isCorrect = !isMistake;
     } else {
       const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
       isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
     }
-    if (isCorrect) correctCount++;
-    else mistakesCount++;
+    isCorrect ? correctCount++ : mistakesCount++;
   });
 
   const setEl = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.innerText = val;
   };
+  setEl("review-count-all", total);
+  setEl("review-count-correct", correctCount);
+  setEl("review-count-mistakes", mistakesCount);
+  setEl("review-count-flagged", flaggedSet.size);
 
-  setEl('review-count-all', total);
-  setEl('review-count-correct', correctCount);
-  setEl('review-count-mistakes', mistakesCount);
-  setEl('review-count-flagged', flaggedSet.size);
-
-  filterAttemptReview('all');
-  switchView('review');
+  filterAttemptReview("all");
+  switchView("review");
 }
 
 function filterAttemptReview(filterType) {
   currentAttemptFilter = filterType;
-
-  // Highlight the active pill
-  document.querySelectorAll('.attempt-review-filter-pills .summary-pill').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${filterType}'`));
+  document.querySelectorAll(".attempt-review-filter-pills .summary-pill").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("onclick").includes(`'${filterType}'`));
   });
-
   renderAttemptReviewCards();
 }
 
 function renderAttemptReviewCards() {
   const record = currentActiveAttemptRecord;
-  const container = document.getElementById('review-all-questions-list');
+  const container = document.getElementById("review-all-questions-list");
   if (!record || !container) return;
 
-  container.innerHTML = '';
-  const isPaperMode = record.mode === 'paper';
+  container.innerHTML = "";
+  const isPaperMode = record.mode === "paper";
   const rawFlags = record.flaggedIndices || record.flagged_indices || [];
-  const flaggedSet = new Set(rawFlags.map(n => Number(n)));
-
+  const flaggedSet = new Set(rawFlags.map((n) => Number(n)));
   let renderedCount = 0;
 
   record.questions.forEach((q, idx) => {
@@ -1179,8 +1159,8 @@ function renderAttemptReviewCards() {
     let isCorrect = false;
 
     if (isPaperMode) {
-      const isMistake = record.mistakenIndices 
-        ? record.mistakenIndices.includes(idx) 
+      const isMistake = record.mistakenIndices
+        ? record.mistakenIndices.includes(idx)
         : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
       isCorrect = !isMistake;
     } else {
@@ -1188,112 +1168,221 @@ function renderAttemptReviewCards() {
       isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
     }
 
-    // Filter matching check
-    if (currentAttemptFilter === 'correct' && !isCorrect) return;
-    if (currentAttemptFilter === 'mistakes' && isCorrect) return;
-    if (currentAttemptFilter === 'flagged' && !isFlagged) return;
-
+    if (currentAttemptFilter === "correct" && !isCorrect) return;
+    if (currentAttemptFilter === "mistakes" && isCorrect) return;
+    if (currentAttemptFilter === "flagged" && !isFlagged) return;
     renderedCount++;
 
-    const card = document.createElement('div');
-    let cardClass = 'review-item-card';
-    if (isFlagged) cardClass += ' is-flagged';
-    else if (isCorrect) cardClass += ' is-correct';
-    else cardClass += ' is-wrong';
+    const card = document.createElement("div");
+    let cardClass = "review-item-card";
+    if (isFlagged) cardClass += " is-flagged";
+    else if (isCorrect) cardClass += " is-correct";
+    else cardClass += " is-wrong";
     card.className = cardClass;
 
-    let optionsHtml = '';
+    let optionsHtml = "";
     if (isPaperMode) {
-      optionsHtml = q.options.map(opt => {
+      optionsHtml = q.options.map((opt) => {
         const isAnswer = q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase();
-        return `<div class="review-opt-row ${isAnswer ? 'is-answer' : 'paper-neutral'}">
-          <span>${opt.letter.toUpperCase()}.</span>
-          <span>${opt.text}${isAnswer ? ' <strong>(Correct Key)</strong>' : ''}</span>
+        return `<div class="review-opt-row ${isAnswer ? "is-answer" : "paper-neutral"}">
+          <span>${opt.letter.toUpperCase()}.</span><span>${opt.text}${isAnswer ? " <strong>(Correct Key)</strong>" : ""}</span>
         </div>`;
-      }).join('');
+      }).join("");
     } else {
       const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
-      optionsHtml = q.options.map(opt => {
-        let extraClass = '';
-        let tag = '';
-
+      optionsHtml = q.options.map((opt) => {
+        let extraClass = "";
+        let tag = "";
         if (userChoice && opt.letter.toLowerCase() === userChoice) {
-          extraClass = isCorrect ? 'is-answer' : 'user-wrong';
-          tag = isCorrect ? ' <strong>(Your Correct Answer)</strong>' : ' <strong>(Your Answer)</strong>';
+          extraClass = isCorrect ? "is-answer" : "user-wrong";
+          tag = isCorrect ? " <strong>(Your Correct Answer)</strong>" : " <strong>(Your Answer)</strong>";
         } else if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
-          extraClass = 'is-answer';
-          tag = ' <strong>(Correct Answer)</strong>';
+          extraClass = "is-answer";
+          tag = " <strong>(Correct Answer)</strong>";
         }
-
         return `<div class="review-opt-row ${extraClass}">
-          <span>${opt.letter.toUpperCase()}.</span>
-          <span>${opt.text}${tag}</span>
+          <span>${opt.letter.toUpperCase()}.</span><span>${opt.text}${tag}</span>
         </div>`;
-      }).join('');
+      }).join("");
     }
 
-    let badgesHtml = '';
-    if (isFlagged) {
-      badgesHtml += `<span class="review-item-badge badge-flagged">🚩 Flagged</span> `;
-    }
-    if (isCorrect) {
-      badgesHtml += `<span class="review-item-badge badge-correct">Question ${idx + 1} &bull; Correct</span>`;
-    } else {
-      badgesHtml += `<span class="review-item-badge badge-wrong">Question ${idx + 1} &bull; Mistake</span>`;
-    }
+    let badgesHtml = isFlagged ? `<span class="review-item-badge badge-flagged">🚩 Flagged</span> ` : "";
+    badgesHtml += isCorrect
+      ? `<span class="review-item-badge badge-correct">Question ${idx + 1} &bull; Correct</span>`
+      : `<span class="review-item-badge badge-wrong">Question ${idx + 1} &bull; Mistake</span>`;
 
     card.innerHTML = `
-      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-        ${badgesHtml}
-      </div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">${badgesHtml}</div>
       <div style="font-weight: 800; font-size: 1rem; margin-bottom: 8px;">${q.id || idx + 1}. ${q.question}</div>
       <div class="review-options-list">${optionsHtml}</div>
-      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ''}
+      ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ""}
     `;
-
     container.appendChild(card);
   });
 
-  // Empty state if 0 items match the active pill
   if (renderedCount === 0) {
     container.innerHTML = `
       <div style="text-align: center; padding: 32px 16px; background: var(--surface-alt); border-radius: 16px; border: 1px dashed var(--border-subtle);">
         <p style="color: var(--text-muted); font-size: 0.92rem; font-weight: 600;">No questions found under this filter.</p>
-      </div>
-    `;
+      </div>`;
   }
+}
+
+/* --------------------------------------------------------------------------
+   10. RECORDS TABLE, SORTING & ROW DELETION
+   -------------------------------------------------------------------------- */
+async function renderRecordsTable() {
+  const tbody = document.getElementById("records-table-body");
+  if (!tbody) return;
+
+  currentRecordsCache = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+  updateRecordFilterCounts(currentRecordsCache);
+  updateSortHeaderIcons();
+  renderFilteredRecordsRows();
+  updateDashboardMetrics();
+}
+
+function updateRecordFilterCounts(records) {
+  const safeRecords = Array.isArray(records) ? records : [];
+  const setEl = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+  };
+  setEl("record-count-all", safeRecords.length);
+  setEl("record-count-device", safeRecords.filter((r) => (r.mode || "device") === "device").length);
+  setEl("record-count-paper", safeRecords.filter((r) => r.mode === "paper").length);
+}
+
+function filterRecordsTable(filterMode) {
+  currentRecordsFilter = filterMode;
+  document.querySelectorAll(".records-filter-pills .summary-pill").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("onclick").includes(`'${filterMode}'`));
+  });
+  renderFilteredRecordsRows();
+}
+
+function sortRecordsBy(column) {
+  if (currentSortColumn === column) {
+    currentSortOrder = currentSortOrder === "asc" ? "desc" : "asc";
+  } else {
+    currentSortColumn = column;
+    currentSortOrder = column === "title" ? "asc" : "desc";
+  }
+  updateSortHeaderIcons();
+  renderFilteredRecordsRows();
+}
+
+function updateSortHeaderIcons() {
+  const columns = ["title", "date", "score", "accuracy"];
+  columns.forEach((col) => {
+    const iconEl = document.getElementById(`sort-icon-${col}`);
+    if (!iconEl) return;
+
+    if (col === currentSortColumn) {
+      iconEl.innerText = currentSortOrder === "asc" ? "▲" : "▼";
+      iconEl.style.opacity = "1";
+    } else {
+      iconEl.innerText = "⇅";
+      iconEl.style.opacity = "0.4";
+    }
+  });
+}
+
+function renderFilteredRecordsRows() {
+  const tbody = document.getElementById("records-table-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let items = [...currentRecordsCache];
+  if (currentRecordsFilter !== "all") {
+    items = items.filter((r) => (r.mode || "device") === currentRecordsFilter);
+  }
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No records found under this filter.</td></tr>`;
+    return;
+  }
+
+  items.sort((a, b) => {
+    switch (currentSortColumn) {
+      case "title": {
+        const valA = (a.title || "").toLowerCase();
+        const valB = (b.title || "").toLowerCase();
+        return currentSortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      case "date": {
+        const valA = new Date(a.date || 0).getTime();
+        const valB = new Date(b.date || 0).getTime();
+        return currentSortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      case "score": {
+        const parseNum = (str) => {
+          const m = String(str || "").match(/^(\d+)/);
+          return m ? parseInt(m[1], 10) : 0;
+        };
+        const valA = parseNum(a.score);
+        const valB = parseNum(b.score);
+        return currentSortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      case "accuracy": {
+        const valA = parseFloat(String(a.percentage || "0").replace("%", "")) || 0;
+        const valB = parseFloat(String(b.percentage || "0").replace("%", "")) || 0;
+        return currentSortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      default:
+        return 0;
+    }
+  });
+
+  items.forEach((r, idx) => {
+    const recordId = r.id || `rec_${idx}`;
+    const row = document.createElement("tr");
+    row.onclick = (e) => {
+      if (e.target.closest("button")) return;
+      openFullAttemptReview(recordId);
+    };
+
+    const modeBadge = r.mode === "paper"
+      ? `<span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; background: var(--surface-alt); border: 1px solid var(--border-subtle); color: var(--text-muted); margin-left: 6px;">Paper</span>`
+      : "";
+
+    row.innerHTML = `
+      <td><strong>${r.title}</strong> ${modeBadge}</td>
+      <td>${r.date}</td>
+      <td>${r.score}</td>
+      <td><span style="color: var(--primary); font-weight: 800;">${r.percentage}</span></td>
+      <td style="text-align: center;">
+        <button class="btn btn-danger" style="padding: 5px 12px; font-size: 0.8rem; white-space: nowrap;" type="button" onclick="handleDeleteRecordClick('${recordId}', ${idx})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
 }
 
 function handleDeleteRecordClick(recordId, index) {
-  const modal = document.getElementById('delete-record-modal');
+  const modal = document.getElementById("delete-record-modal");
   if (modal) {
     pendingDeleteRecordId = recordId;
-    modal.style.display = 'flex';
-  } else {
-    if (confirm("Are you sure you want to permanently delete this attempt record?")) {
-      executeDeleteRecord(recordId, index);
-    }
+    modal.style.display = "flex";
+  } else if (confirm("Are you sure you want to permanently delete this attempt record?")) {
+    executeDeleteRecord(recordId, index);
   }
 }
 
-async function executeDeleteRecord(recordId, index) {
-  try {
-    await sb.from('quiz_records').delete().eq('id', recordId);
-  } catch (err) {
-    console.error("Cloud delete failed:", err);
-  }
+async function executeDeleteRecord(recordId) {
+  let records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+  records = records.filter((r) => r.id !== recordId);
+  localStorage.setItem("quiz_records", JSON.stringify(records));
+  currentRecordsCache = records;
 
-  let records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-  records = records.filter(r => r.id !== recordId);
-  localStorage.setItem('quiz_records', JSON.stringify(records));
   await renderRecordsTable();
   updateDashboardMetrics();
 }
 
 function closeDeleteRecordModal() {
   pendingDeleteRecordId = null;
-  const modal = document.getElementById('delete-record-modal');
-  if (modal) modal.style.display = 'none';
+  const modal = document.getElementById("delete-record-modal");
+  if (modal) modal.style.display = "none";
 }
 
 function confirmDeleteRecord() {
@@ -1303,201 +1392,20 @@ function confirmDeleteRecord() {
 }
 
 async function clearAllRecords() {
-  const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
+  const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
   if (records.length === 0) return;
 
-  if (confirm("Are you sure you want to permanently clear all quiz records across all devices?")) {
-    try {
-      await sb.from('quiz_records').delete().neq('id', 'placeholder');
-    } catch (err) {
-      console.error("Cloud clear failed:", err);
-    }
-
-    localStorage.removeItem('quiz_records');
+  if (confirm("Are you sure you want to clear all quiz records on this device?")) {
+    localStorage.removeItem("quiz_records");
+    currentRecordsCache = [];
     await renderRecordsTable();
     updateDashboardMetrics();
   }
 }
 
-// --- Module: Upload & Parser Engine ---
-async function handleFileUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const ext = file.name.split('.').pop().toLowerCase();
-  const titleInput = document.getElementById('quiz-title-input');
-  if (!titleInput.value.trim()) {
-    titleInput.value = file.name.replace(/\.[^/.]+$/, "");
-  }
-
-  showStatus("Reading file: " + file.name, "success");
-
-  try {
-    if (ext === 'docx') {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-      document.getElementById('raw-paste').value = result.value;
-    } else if (ext === 'txt' || ext === 'json' || ext === 'csv') {
-      document.getElementById('raw-paste').value = await file.text();
-    }
-    processAndLoadQuiz();
-  } catch (err) {
-    showStatus("Error reading file: " + err.message, "error");
-  }
-}
-
-function parseFormattedText(rawText) {
-  const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-  let questionSection = [];
-  let answerSection = [];
-  let inAnswers = false;
-
-  for (let line of lines) {
-    if (/^(answers?|answer\s*key|rationales?):?/i.test(line)) {
-      inAnswers = true;
-      continue;
-    }
-    if (inAnswers) {
-      answerSection.push(line);
-    } else {
-      questionSection.push(line);
-    }
-  }
-
-  const questions = [];
-  let curQ = null;
-
-  for (let line of questionSection) {
-    const qMatch = line.match(/^(\d+)[\.\)]\s*(.+)/i);
-    const optMatch = line.match(/^([a-d])[\.\)]\s*(.+)/i);
-
-    if (qMatch) {
-      if (curQ) questions.push(curQ);
-      curQ = {
-        id: parseInt(qMatch[1], 10),
-        question: qMatch[2].trim(),
-        options: [],
-        answer: "",
-        explanation: ""
-      };
-    } else if (optMatch && curQ) {
-      curQ.options.push({
-        letter: optMatch[1].toLowerCase(),
-        text: optMatch[2].trim()
-      });
-    } else if (curQ && curQ.options.length === 0) {
-      curQ.question += " " + line;
-    }
-  }
-  if (curQ) questions.push(curQ);
-
-  for (let line of answerSection) {
-    const ansMatch = line.match(/^(\d+)[\.\)]\s*([a-d])?[\.\-\:\)]?\s*(.*)/i);
-    if (ansMatch) {
-      const num = parseInt(ansMatch[1], 10);
-      const qObj = questions.find(q => q.id === num);
-      if (qObj) {
-        if (ansMatch[2]) qObj.answer = ansMatch[2].toLowerCase();
-        qObj.explanation = ansMatch[3] ? ansMatch[3].replace(/^(explanation|rationale):?\s*/i, "").trim() : "";
-      }
-    }
-  }
-  return questions;
-}
-
-function parseJSON(text) {
-  const data = JSON.parse(text);
-  const items = Array.isArray(data) ? data : data.questions;
-  return items.map((q, idx) => ({
-    id: idx + 1,
-    question: q.question,
-    options: Array.isArray(q.options) 
-      ? q.options.map((opt, i) => ({ letter: String.fromCharCode(97 + i), text: opt })) 
-      : [],
-    answer: (q.answer || "").toLowerCase(),
-    explanation: q.explanation || q.rationale || ""
-  }));
-}
-
-async function processAndLoadQuiz() {
-  const text = document.getElementById('raw-paste').value.trim();
-  const title = document.getElementById('quiz-title-input').value.trim() || "Untitled Assessment";
-  const subject = (document.getElementById('quiz-subject-input')?.value || "").trim() || "General";
-
-  if (!text) {
-    showStatus("Please paste content or upload a valid quiz file.", "error");
-    return;
-  }
-
-  let parsedQuestions = [];
-  try {
-    if (text.startsWith("{") || text.startsWith("[")) {
-      parsedQuestions = parseJSON(text);
-    } else {
-      parsedQuestions = parseFormattedText(text);
-    }
-
-    if (parsedQuestions.length === 0) {
-      showStatus("No valid questions detected. Verify numbering format.", "error");
-      return;
-    }
-
-    const quizRecord = {
-      id: "quiz_" + Date.now(),
-      title: title,
-      subject: subject,
-      sortOrder: (cachedDecks || []).length,
-      uploadedAt: new Date().toISOString().split("T")[0],
-      totalQuestions: parsedQuestions.length,
-      questions: parsedQuestions
-    };
-
-    try {
-      await sb.from('quiz_decks').upsert({
-        id: quizRecord.id,
-        title: quizRecord.title,
-        subject: quizRecord.subject,
-        sort_order: quizRecord.sortOrder,
-        uploaded_at: quizRecord.uploadedAt,
-        total_questions: quizRecord.totalQuestions,
-        questions: quizRecord.questions
-      });
-    } catch (err) {
-      console.error("Cloud deck save failed:", err);
-    }
-
-    const stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-    stored.unshift(quizRecord);
-    localStorage.setItem('quizzes', JSON.stringify(stored));
-
-    clearUploadForm();
-    await renderQuizList();
-    updateDashboardMetrics();
-    switchView('take');
-    startQuizSession(quizRecord, 'device');
-  } catch (err) {
-    showStatus("Parsing failed: " + err.message, "error");
-  }
-}
-
-function clearUploadForm() {
-  document.getElementById('raw-paste').value = "";
-  document.getElementById('quiz-title-input').value = "";
-  document.getElementById('file-input').value = "";
-  const box = document.getElementById('upload-status');
-  if (box) box.style.display = 'none';
-  const subjectInput = document.getElementById('quiz-subject-input');
-  if (subjectInput) subjectInput.value = "";
-}
-
-function showStatus(msg, type) {
-  const box = document.getElementById('upload-status');
-  if (!box) return;
-  box.className = 'status-box ' + type;
-  box.innerText = msg;
-}
-
-// --- Module: Manual Quiz Creator & Editor ---
+/* --------------------------------------------------------------------------
+   11. MANUAL QUIZ CREATOR & EDITOR
+   -------------------------------------------------------------------------- */
 function initManualCreator() {
   populateEditQuizDropdown();
   startFreshQuizCreation();
@@ -1509,8 +1417,7 @@ function populateEditQuizDropdown() {
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
   dropdown.innerHTML = `<option value="">-- Choose a quiz to load --</option>`;
-
-  stored.forEach(quiz => {
+  stored.forEach((quiz) => {
     const opt = document.createElement("option");
     opt.value = quiz.id;
     opt.innerText = `${quiz.title} (${quiz.totalQuestions} items)`;
@@ -1521,7 +1428,7 @@ function populateEditQuizDropdown() {
 function startFreshQuizCreation() {
   const titleInput = document.getElementById("create-quiz-title");
   if (titleInput) titleInput.value = "";
-  
+
   const subjectInput = document.getElementById("create-quiz-subject");
   if (subjectInput) subjectInput.value = "General";
 
@@ -1540,7 +1447,7 @@ function loadQuizForEditing(quizId) {
   }
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  const quiz = stored.find(q => q.id === quizId);
+  const quiz = stored.find((q) => q.id === quizId);
   if (!quiz) return;
 
   document.getElementById("editing-quiz-id").value = quiz.id;
@@ -1549,13 +1456,12 @@ function loadQuizForEditing(quizId) {
 
   const container = document.getElementById("editor-questions-container");
   container.innerHTML = "";
-
-  quiz.questions.forEach(q => {
+  quiz.questions.forEach((q) => {
     addQuestionBlock("editor-questions-container", {
       question: q.question,
       options: q.options,
       answer: q.answer,
-      explanation: q.explanation
+      explanation: q.explanation,
     });
   });
 
@@ -1571,10 +1477,10 @@ function addQuestionBlock(targetContainerId, data = null) {
 
   const promptVal = data ? data.question : "";
   const expVal = data ? (data.explanation || "") : "";
-  const optA = data && data.options && data.options[0] ? data.options[0].text : "";
-  const optB = data && data.options && data.options[1] ? data.options[1].text : "";
-  const optC = data && data.options && data.options[2] ? data.options[2].text : "";
-  const optD = data && data.options && data.options[3] ? data.options[3].text : "";
+  const optA = data?.options?.[0]?.text || "";
+  const optB = data?.options?.[1]?.text || "";
+  const optC = data?.options?.[2]?.text || "";
+  const optD = data?.options?.[3]?.text || "";
   const correctOpt = data ? (data.answer || "a") : "a";
 
   block.innerHTML = `
@@ -1582,44 +1488,28 @@ function addQuestionBlock(targetContainerId, data = null) {
       <strong>Question</strong>
       <button type="button" class="btn btn-danger" style="padding: 4px 12px; font-size: 0.78rem;" onclick="this.closest('.create-question-card').remove(); renumberQuestionBlocks('${targetContainerId}')">Remove</button>
     </div>
-
     <div class="form-group" style="margin-bottom: 14px;">
-      <input type="text" class="q-input-prompt" placeholder="Enter question prompt..." value="${promptVal.replace(/"/g, '&quot;')}" />
+      <input type="text" class="q-input-prompt" placeholder="Enter question prompt..." value="${promptVal.replace(/"/g, "&quot;")}" />
     </div>
-
-    <!-- 2x2 Clean Option Grid with Embedded Letter Badges -->
     <div class="options-input-grid">
-      <div class="input-with-label">
-        <span>A</span>
-        <input type="text" class="opt-val" data-opt="a" placeholder="Option A" value="${optA.replace(/"/g, '&quot;')}" />
-      </div>
-      <div class="input-with-label">
-        <span>B</span>
-        <input type="text" class="opt-val" data-opt="b" placeholder="Option B" value="${optB.replace(/"/g, '&quot;')}" />
-      </div>
-      <div class="input-with-label">
-        <span>C</span>
-        <input type="text" class="opt-val" data-opt="c" placeholder="Option C" value="${optC.replace(/"/g, '&quot;')}" />
-      </div>
-      <div class="input-with-label">
-        <span>D</span>
-        <input type="text" class="opt-val" data-opt="d" placeholder="Option D" value="${optD.replace(/"/g, '&quot;')}" />
-      </div>
+      <div class="input-with-label"><span>A</span><input type="text" class="opt-val" data-opt="a" placeholder="Option A" value="${optA.replace(/"/g, "&quot;")}" /></div>
+      <div class="input-with-label"><span>B</span><input type="text" class="opt-val" data-opt="b" placeholder="Option B" value="${optB.replace(/"/g, "&quot;")}" /></div>
+      <div class="input-with-label"><span>C</span><input type="text" class="opt-val" data-opt="c" placeholder="Option C" value="${optC.replace(/"/g, "&quot;")}" /></div>
+      <div class="input-with-label"><span>D</span><input type="text" class="opt-val" data-opt="d" placeholder="Option D" value="${optD.replace(/"/g, "&quot;")}" /></div>
     </div>
-
     <div style="display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: start; margin-top: 14px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label>Correct Answer</label>
         <select class="correct-opt-select" style="padding: 10px 14px; border-radius: var(--radius-input);">
-          <option value="a" ${correctOpt === 'a' ? 'selected' : ''}>Option A</option>
-          <option value="b" ${correctOpt === 'b' ? 'selected' : ''}>Option B</option>
-          <option value="c" ${correctOpt === 'c' ? 'selected' : ''}>Option C</option>
-          <option value="d" ${correctOpt === 'd' ? 'selected' : ''}>Option D</option>
+          <option value="a" ${correctOpt === "a" ? "selected" : ""}>Option A</option>
+          <option value="b" ${correctOpt === "b" ? "selected" : ""}>Option B</option>
+          <option value="c" ${correctOpt === "c" ? "selected" : ""}>Option C</option>
+          <option value="d" ${correctOpt === "d" ? "selected" : ""}>Option D</option>
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label>Rationale (Optional)</label>
-        <input type="text" class="q-input-explanation" placeholder="Rationale explanation..." value="${expVal.replace(/"/g, '&quot;')}" />
+        <input type="text" class="q-input-explanation" placeholder="Rationale explanation..." value="${expVal.replace(/"/g, "&quot;")}" />
       </div>
     </div>
   `;
@@ -1631,18 +1521,17 @@ function addQuestionBlock(targetContainerId, data = null) {
 function renumberQuestionBlocks(targetContainerId) {
   const container = document.getElementById(targetContainerId);
   if (!container) return;
-  const cards = container.querySelectorAll(".create-question-card");
-  cards.forEach((card, index) => {
+  container.querySelectorAll(".create-question-card").forEach((card, index) => {
     const headerTitle = card.querySelector(".create-card-header strong");
     if (headerTitle) headerTitle.innerText = `Question ${index + 1}`;
   });
 }
 
-async function saveManualQuiz(mode = 'create') {
-  const isCreate = mode === 'create';
-  const prefix = isCreate ? 'create' : 'edit';
-  const containerId = isCreate ? 'creator-questions-container' : 'editor-questions-container';
-  const statusBox = document.getElementById(`${prefix}-status`);
+async function saveManualQuiz(mode = "create") {
+  const isCreate = mode === "create";
+  const prefix = isCreate ? "create" : "edit";
+  const containerId = isCreate ? "creator-questions-container" : "editor-questions-container";
+  const statusBoxId = `${prefix}-status`;
 
   const title = (document.getElementById(`${prefix}-quiz-title`)?.value || "").trim() || "Untitled Quiz";
   const subject = (document.getElementById(`${prefix}-quiz-subject`)?.value || "").trim() || "General";
@@ -1652,11 +1541,7 @@ async function saveManualQuiz(mode = 'create') {
   const cards = container ? container.querySelectorAll(".create-question-card") : [];
 
   if (cards.length === 0) {
-    if (statusBox) {
-      statusBox.className = "status-box error";
-      statusBox.innerText = "Please add at least one question before saving.";
-      statusBox.style.display = "block";
-    }
+    showStatus(statusBoxId, "Please add at least one question before saving.", "error");
     return;
   }
 
@@ -1670,9 +1555,8 @@ async function saveManualQuiz(mode = 'create') {
     const explanation = card.querySelector(".q-input-explanation").value.trim();
 
     if (!prompt) hasIncomplete = true;
-
     const options = [];
-    optInputs.forEach(input => {
+    optInputs.forEach((input) => {
       const val = input.value.trim();
       if (!val) hasIncomplete = true;
       options.push({ letter: input.getAttribute("data-opt"), text: val });
@@ -1683,16 +1567,12 @@ async function saveManualQuiz(mode = 'create') {
       question: prompt,
       options: options,
       answer: correctOpt,
-      explanation: explanation
+      explanation: explanation,
     });
   });
 
   if (hasIncomplete) {
-    if (statusBox) {
-      statusBox.className = "status-box error";
-      statusBox.innerText = "Please fill in all question prompts and all 4 choices.";
-      statusBox.style.display = "block";
-    }
+    showStatus(statusBoxId, "Please fill in all question prompts and all 4 choices.", "error");
     return;
   }
 
@@ -1703,27 +1583,13 @@ async function saveManualQuiz(mode = 'create') {
     sortOrder: (cachedDecks || []).length,
     uploadedAt: new Date().toISOString().split("T")[0],
     totalQuestions: parsedQuestions.length,
-    questions: parsedQuestions
+    questions: parsedQuestions,
   };
 
-  try {
-    await sb.from('quiz_decks').upsert({
-      id: quizObj.id,
-      title: quizObj.title,
-      subject: quizObj.subject,
-      sort_order: quizObj.sortOrder,
-      uploaded_at: quizObj.uploadedAt,
-      total_questions: quizObj.totalQuestions,
-      questions: quizObj.questions
-    });
-  } catch (err) {
-    console.error("Cloud deck save failed:", err);
-  }
-
-  let stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
   if (editingId) {
-    const targetIdx = stored.findIndex(q => q.id === editingId);
-    if (targetIdx !== -1) stored[targetIdx] = quizObj;
+    const idx = stored.findIndex((q) => q.id === editingId);
+    if (idx !== -1) stored[idx] = quizObj;
   } else {
     stored.unshift(quizObj);
   }
@@ -1737,84 +1603,233 @@ async function saveManualQuiz(mode = 'create') {
     startFreshQuizCreation();
     switchView("take");
   } else {
-    if (statusBox) {
-      statusBox.className = "status-box success";
-      statusBox.innerText = `Changes saved successfully!`;
-      statusBox.style.display = "block";
-      setTimeout(() => { statusBox.style.display = "none"; }, 3000);
+    showStatus(statusBoxId, "Changes saved successfully!", "success");
+    setTimeout(() => {
+      const box = document.getElementById(statusBoxId);
+      if (box) box.style.display = "none";
+    }, 3000);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. FILE UPLOAD & TEXT PARSING ENGINE
+   -------------------------------------------------------------------------- */
+async function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  const titleInput = document.getElementById("quiz-title-input");
+  if (!titleInput.value.trim()) titleInput.value = file.name.replace(/\.[^/.]+$/, "");
+
+  showStatus("upload-status", "Reading file: " + file.name, "success");
+
+  try {
+    if (ext === "docx") {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+      document.getElementById("raw-paste").value = result.value;
+    } else if (["txt", "json", "csv"].includes(ext)) {
+      document.getElementById("raw-paste").value = await file.text();
+    }
+    processAndLoadQuiz();
+  } catch (err) {
+    showStatus("upload-status", "Error reading file: " + err.message, "error");
+  }
+}
+
+function parseFormattedText(rawText) {
+  const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const questionSection = [];
+  const answerSection = [];
+  let inAnswers = false;
+
+  for (let line of lines) {
+    if (/^(answers?|answer\s*key|rationales?):?/i.test(line)) {
+      inAnswers = true;
+      continue;
+    }
+    inAnswers ? answerSection.push(line) : questionSection.push(line);
+  }
+
+  const questions = [];
+  let curQ = null;
+
+  for (let line of questionSection) {
+    const qMatch = line.match(/^(\d+)[\.\)]\s*(.+)/i);
+    const optMatch = line.match(/^([a-d])[\.\)]\s*(.+)/i);
+
+    if (qMatch) {
+      if (curQ) questions.push(curQ);
+      curQ = { id: parseInt(qMatch[1], 10), question: qMatch[2].trim(), options: [], answer: "", explanation: "" };
+    } else if (optMatch && curQ) {
+      curQ.options.push({ letter: optMatch[1].toLowerCase(), text: optMatch[2].trim() });
+    } else if (curQ && curQ.options.length === 0) {
+      curQ.question += " " + line;
     }
   }
+  if (curQ) questions.push(curQ);
+
+  for (let line of answerSection) {
+    const ansMatch = line.match(/^(\d+)[\.\)]\s*([a-d])?[\.\-\:\)]?\s*(.*)/i);
+    if (ansMatch) {
+      const num = parseInt(ansMatch[1], 10);
+      const qObj = questions.find((q) => q.id === num);
+      if (qObj) {
+        if (ansMatch[2]) qObj.answer = ansMatch[2].toLowerCase();
+        qObj.explanation = ansMatch[3] ? ansMatch[3].replace(/^(explanation|rationale):?\s*/i, "").trim() : "";
+      }
+    }
+  }
+  return questions;
 }
 
-
-// --- Module: Mobile Sidebar Navigation ---
-function toggleSidebar() {
-  const sidebar = document.getElementById('main-sidebar');
-  const backdrop = document.getElementById('sidebar-backdrop');
-  if (!sidebar) return;
-  const isOpen = sidebar.classList.toggle('open');
-  if (backdrop) backdrop.classList.toggle('active', isOpen);
+function parseJSON(text) {
+  const data = JSON.parse(text);
+  const items = Array.isArray(data) ? data : data.questions;
+  return items.map((q, idx) => ({
+    id: idx + 1,
+    question: q.question,
+    options: Array.isArray(q.options)
+      ? q.options.map((opt, i) => ({ letter: String.fromCharCode(97 + i), text: opt }))
+      : [],
+    answer: (q.answer || "").toLowerCase(),
+    explanation: q.explanation || q.rationale || "",
+  }));
 }
 
-function closeSidebar() {
-  const sidebar = document.getElementById('main-sidebar');
-  const backdrop = document.getElementById('sidebar-backdrop');
-  if (sidebar) sidebar.classList.remove('open');
-  if (backdrop) backdrop.classList.remove('active');
-}
+async function processAndLoadQuiz() {
+  const text = document.getElementById("raw-paste").value.trim();
+  const title = document.getElementById("quiz-title-input").value.trim() || "Untitled Assessment";
+  const subject = (document.getElementById("quiz-subject-input")?.value || "").trim() || "General";
 
-// --- Module: Theme Management ---
-function initTheme() {
-  const savedTheme = localStorage.getItem('quizhub_theme') || 'normal';
-  setTheme(savedTheme);
-}
-
-function setTheme(themeName) {
-  const root = document.documentElement;
-  const btnDoraemon = document.getElementById('theme-btn-doraemon');
-  const btnNormal = document.getElementById('theme-btn-normal');
-
-  if (themeName === 'normal') {
-    root.setAttribute('data-theme', 'normal');
-    if (btnNormal) btnNormal.classList.add('active');
-    if (btnDoraemon) btnDoraemon.classList.remove('active');
-  } else {
-    root.removeAttribute('data-theme');
-    if (btnDoraemon) btnDoraemon.classList.add('active');
-    if (btnNormal) btnNormal.classList.remove('active');
+  if (!text) {
+    showStatus("upload-status", "Please paste content or upload a valid quiz file.", "error");
+    return;
   }
 
-  localStorage.setItem('quizhub_theme', themeName);
+  let parsedQuestions = [];
+  try {
+    parsedQuestions = (text.startsWith("{") || text.startsWith("[")) ? parseJSON(text) : parseFormattedText(text);
+    if (parsedQuestions.length === 0) {
+      showStatus("upload-status", "No valid questions detected. Verify numbering format.", "error");
+      return;
+    }
+
+    const quizRecord = {
+      id: "quiz_" + Date.now(),
+      title: title,
+      subject: subject,
+      sortOrder: (cachedDecks || []).length,
+      uploadedAt: new Date().toISOString().split("T")[0],
+      totalQuestions: parsedQuestions.length,
+      questions: parsedQuestions,
+    };
+
+    const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+    stored.unshift(quizRecord);
+    localStorage.setItem("quizzes", JSON.stringify(stored));
+
+    clearUploadForm();
+    await renderQuizList();
+    updateDashboardMetrics();
+    switchView("take");
+    startQuizSession(quizRecord, "device");
+  } catch (err) {
+    showStatus("upload-status", "Parsing failed: " + err.message, "error");
+  }
 }
 
-// --- Module: Backup Import & Export Engine ---
+function clearUploadForm() {
+  document.getElementById("raw-paste").value = "";
+  document.getElementById("quiz-title-input").value = "";
+  document.getElementById("file-input").value = "";
+  const box = document.getElementById("upload-status");
+  if (box) box.style.display = "none";
+  const subjectInput = document.getElementById("quiz-subject-input");
+  if (subjectInput) subjectInput.value = "";
+}
+
+/* --------------------------------------------------------------------------
+   13. BACKUP IMPORT & EXPORT (OFFLINE JSON)
+   -------------------------------------------------------------------------- */
 function exportDataBackup() {
-  const quizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  const records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
+  try {
+    const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
+    const rawRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
 
-  const backupData = {
-    app: "QuizHub",
-    version: "1.0",
-    exportedAt: new Date().toISOString(),
-    quizzes: quizzes,
-    quiz_records: records
-  };
+    const sanitizedQuizzes = rawQuizzes.map((deck, idx) => ({
+      id: String(deck.id || `quiz_${Date.now()}_${idx}`),
+      title: String(deck.title || "Untitled Assessment").trim(),
+      subject: String(deck.subject || "General").trim(),
+      sortOrder: Number.isInteger(deck.sortOrder) ? deck.sortOrder : idx,
+      uploadedAt: deck.uploadedAt || new Date().toISOString().split("T")[0],
+      totalQuestions: Number(deck.totalQuestions) || (deck.questions ? deck.questions.length : 0),
+      questions: Array.isArray(deck.questions) ? deck.questions.map((q, qIdx) => ({
+        id: Number(q.id) || (qIdx + 1),
+        question: String(q.question || "").trim(),
+        options: Array.isArray(q.options) ? q.options.map((opt) => ({
+          letter: String(opt.letter || "").toLowerCase().trim(),
+          text: String(opt.text || "").trim(),
+        })) : [],
+        answer: String(q.answer || "").toLowerCase().trim(),
+        explanation: String(q.explanation || q.rationale || "").trim(),
+      })) : [],
+    }));
 
-  const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-  const downloadAnchor = document.createElement('a');
-  const dateStamp = new Date().toISOString().split('T')[0];
-  
-  downloadAnchor.setAttribute("href", jsonString);
-  downloadAnchor.setAttribute("download", `QuizHub_Backup_${dateStamp}.json`);
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
+    const sanitizedRecords = rawRecords.map((rec, idx) => {
+      const rawFlags = rec.flaggedIndices || rec.flagged_indices || [];
+      const rawMistakes = rec.mistakenIndices || rec.mistaken_indices || [];
+
+      return {
+        id: String(rec.id || `rec_${Date.now()}_${idx}`),
+        title: String(rec.title || "Untitled Attempt").trim(),
+        date: rec.date || new Date().toISOString().split("T")[0],
+        score: String(rec.score || "0 / 0"),
+        percentage: String(rec.percentage || "0%"),
+        mode: rec.mode === "paper" ? "paper" : "device",
+        mistakesCount: Number.isInteger(rec.mistakesCount) ? rec.mistakesCount : (Number(rec.mistakes_count) || rawMistakes.length),
+        mistakenIndices: Array.from(new Set(rawMistakes.map((n) => Number(n)))),
+        flaggedIndices: Array.from(new Set(rawFlags.map((n) => Number(n)))),
+        questions: Array.isArray(rec.questions) ? rec.questions : [],
+        userAnswers: typeof rec.userAnswers === "object" && rec.userAnswers !== null ? rec.userAnswers : (rec.user_answers || {}),
+      };
+    });
+
+    const backupEnvelope = {
+      meta: {
+        app: "QuizHub",
+        schemaVersion: "2.0",
+        exportedAt: new Date().toISOString(),
+        authorUserId: currentUser ? currentUser.id : null,
+        counts: { decks: sanitizedQuizzes.length, records: sanitizedRecords.length },
+      },
+      quizzes: sanitizedQuizzes,
+      quiz_records: sanitizedRecords,
+    };
+
+    const blob = new Blob([JSON.stringify(backupEnvelope, null, 2)], { type: "application/json" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.href = downloadUrl;
+    downloadAnchor.download = `QuizHub_Backup_${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+
+    setTimeout(() => {
+      document.body.removeChild(downloadAnchor);
+      URL.revokeObjectURL(downloadUrl);
+    }, 150);
+  } catch (err) {
+    console.error("Export error:", err);
+    alert("Export failed: " + err.message);
+  }
 }
 
 function triggerImportFileInput() {
-  const input = document.getElementById('backup-file-input');
+  const input = document.getElementById("backup-file-input");
   if (input) {
-    input.value = ""; 
+    input.value = "";
     input.click();
   }
 }
@@ -1824,29 +1839,75 @@ function handleBackupFileSelect(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = async function (e) {
     try {
-      const data = JSON.parse(e.target.result);
+      let importedData;
+      try {
+        importedData = JSON.parse(e.target.result);
+      } catch {
+        throw new Error("The selected file is not valid JSON.");
+      }
 
-      if (!data.quizzes && !data.quiz_records) {
-        alert("Invalid backup file: Expected QuizHub backup data.");
+      const rawQuizzes = Array.isArray(importedData.quizzes) ? importedData.quizzes : (Array.isArray(importedData) ? importedData : []);
+      const rawRecords = Array.isArray(importedData.quiz_records) ? importedData.quiz_records : (Array.isArray(importedData.records) ? importedData.records : []);
+
+      if (rawQuizzes.length === 0 && rawRecords.length === 0) {
+        alert("Import aborted: No valid quiz decks or records found in this backup file.");
         return;
       }
 
-      const confirmRestore = confirm(
-        `Restore backup from ${data.exportedAt ? data.exportedAt.split('T')[0] : 'file'}?\n` +
-        `• Quizzes: ${data.quizzes ? data.quizzes.length : 0}\n` +
-        `• Records: ${data.quiz_records ? data.quiz_records.length : 0}\n\n` +
-        `Click OK to restore local data with this backup.`
+      const shouldOverwrite = confirm(
+        `📦 Backup Found:\n• Decks: ${rawQuizzes.length}\n• Attempt Records: ${rawRecords.length}\n\n` +
+        `Do you want to REPLACE your current data?\n\n` +
+        `• Click [OK] to Overwrite / Replace current data.\n` +
+        `• Click [Cancel] to MERGE with your existing library.`
       );
 
-      if (!confirmRestore) return;
+      const cleanQuizzes = rawQuizzes.map((d, i) => ({
+        id: String(d.id || `quiz_${Date.now()}_${i}`),
+        title: String(d.title || "Untitled Assessment").trim(),
+        subject: String(d.subject || "General").trim(),
+        sortOrder: d.sortOrder ?? i,
+        uploadedAt: d.uploadedAt || new Date().toISOString().split("T")[0],
+        totalQuestions: d.totalQuestions || (d.questions ? d.questions.length : 0),
+        questions: Array.isArray(d.questions) ? d.questions : [],
+      }));
 
-      if (Array.isArray(data.quizzes)) {
-        localStorage.setItem('quizzes', JSON.stringify(data.quizzes));
-      }
-      if (Array.isArray(data.quiz_records)) {
-        localStorage.setItem('quiz_records', JSON.stringify(data.quiz_records));
+      const cleanRecords = rawRecords.map((r, i) => {
+        const rawFlags = r.flaggedIndices || r.flagged_indices || [];
+        const rawMistakes = r.mistakenIndices || r.mistaken_indices || [];
+        return {
+          id: String(r.id || `rec_${Date.now()}_${i}`),
+          title: String(r.title || "Untitled Attempt").trim(),
+          date: r.date || new Date().toISOString().split("T")[0],
+          score: String(r.score || "0 / 0"),
+          percentage: String(r.percentage || "0%"),
+          mode: r.mode === "paper" ? "paper" : "device",
+          mistakesCount: r.mistakesCount ?? r.mistakes_count ?? rawMistakes.length,
+          mistakenIndices: Array.from(new Set(rawMistakes.map((n) => Number(n)))),
+          flaggedIndices: Array.from(new Set(rawFlags.map((n) => Number(n)))),
+          questions: Array.isArray(r.questions) ? r.questions : [],
+          userAnswers: r.userAnswers || r.user_answers || {},
+        };
+      });
+
+      if (shouldOverwrite) {
+        localStorage.setItem("quizzes", JSON.stringify(cleanQuizzes));
+        localStorage.setItem("quiz_records", JSON.stringify(cleanRecords));
+      } else {
+        const existingDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
+        const existingRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+
+        const mergedDecksMap = new Map();
+        existingDecks.forEach((d) => mergedDecksMap.set(d.id, d));
+        cleanQuizzes.forEach((d) => mergedDecksMap.set(d.id, d));
+
+        const mergedRecordsMap = new Map();
+        existingRecords.forEach((r) => mergedRecordsMap.set(r.id, r));
+        cleanRecords.forEach((r) => mergedRecordsMap.set(r.id, r));
+
+        localStorage.setItem("quizzes", JSON.stringify(Array.from(mergedDecksMap.values())));
+        localStorage.setItem("quiz_records", JSON.stringify(Array.from(mergedRecordsMap.values())));
       }
 
       await renderQuizList();
@@ -1854,360 +1915,166 @@ function handleBackupFileSelect(event) {
       populateEditQuizDropdown();
       updateDashboardMetrics();
 
-      alert("Backup successfully restored!");
+      if (currentUser && confirm("Restore complete! Would you like to sync the restored items to your Supabase cloud account now?")) {
+        await pushLocalDataToSupabase();
+      } else {
+        alert("✅ Data successfully restored into your local browser workspace!");
+      }
     } catch (err) {
-      alert("Error parsing backup JSON file: " + err.message);
+      console.error("Backup restoration failed:", err);
+      alert("Restore failed: " + err.message);
+    } finally {
+      event.target.value = "";
     }
   };
-
   reader.readAsText(file);
 }
 
-// --- Manual Cloud Push: LocalStorage -> Supabase ---
+/* --------------------------------------------------------------------------
+   14. MANUAL CLOUD SYNCHRONIZATION (SUPABASE)
+   -------------------------------------------------------------------------- */
 async function pushLocalDataToSupabase() {
-  const localRecords = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-  const localQuizzes = JSON.parse(localStorage.getItem('quizzes') || '[]');
-
-  if (localRecords.length === 0 && localQuizzes.length === 0) {
-    alert("No local data found to push.");
+  if (!currentUser) {
+    openAuthModal(pushLocalDataToSupabase);
     return;
   }
 
-  let failCount = 0;
-
-  for (const r of localRecords) {
-    const { error } = await sb.from('quiz_records').upsert({
-      id: r.id || ("rec_" + Date.now()),
-      title: r.title || "Untitled Attempt",
-      date: r.date || new Date().toISOString().split("T")[0],
-      score: r.score || "0 / 0",
-      percentage: r.percentage || "0%",
-      mode: r.mode || "device",
-      mistakes_count: r.mistakesCount || 0,
-      mistaken_indices: r.mistakenIndices || [],
-      questions: r.questions || [],
-      user_answers: r.userAnswers || {}
-    });
-    if (error) failCount++;
-  }
-
-  for (const q of localQuizzes) {
-    const { error } = await sb.from('quiz_decks').upsert({
-      id: q.id || ("quiz_" + Date.now()),
-      title: q.title || "Untitled Quiz",
-      subject: q.subject || "General",
-      sort_order: q.sortOrder ?? 0,
-      uploaded_at: q.uploadedAt || new Date().toISOString().split("T")[0],
-      total_questions: q.totalQuestions || 0,
-      questions: q.questions || []
-    });
-    if (error) failCount++;
-  }
-
-  if (failCount === 0) {
-    alert(`Successfully synced all quizzes and records to the cloud!`);
-  } else {
-    alert(`Sync finished, but ${failCount} items failed to upload.`);
-  }
-
-  await renderRecordsTable();
-  await renderQuizList();
-  updateDashboardMetrics();
-}
-
-// --- Cloud Download / Overwrite Local Storage ---
-async function pullCloudDataToLocalStorage() {
-  const proceed = confirm(
-    "⚠️ Replace Local Data with Cloud?\n\n" +
-    "This will overwrite all local quizzes and records on this browser with the data stored in your Supabase cloud database.\n\n" +
-    "Do you want to continue?"
-  );
-
-  if (!proceed) return;
+  const syncButtons = document.querySelectorAll('.sidebar-footer-card button, .nav-btn[onclick*="pushLocalDataToSupabase"]');
+  syncButtons.forEach((btn) => (btn.disabled = true));
 
   try {
-    // 1. Fetch decks from Supabase
-    const { data: cloudDecks, error: decksError } = await sb
-      .from('quiz_decks')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('uploaded_at', { ascending: false });
+    const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
+    const rawRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
 
-    if (decksError) throw decksError;
+    if (rawQuizzes.length === 0 && rawRecords.length === 0) {
+      typeof showToast === "function" ? showToast("No local data found to push.") : alert("No local data found to push.");
+      return;
+    }
 
-    // 2. Fetch records from Supabase
-    const { data: cloudRecords, error: recordsError } = await sb
-      .from('quiz_records')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (recordsError) throw recordsError;
-
-    // 3. Format decks to local structure
-    const formattedDecks = (cloudDecks || []).map((q, idx) => ({
-      id: q.id,
-      title: q.title,
-      subject: q.subject || 'General',
-      sortOrder: q.sort_order ?? idx,
-      uploadedAt: q.uploaded_at,
-      totalQuestions: q.total_questions,
-      questions: q.questions
+    const decksPayload = rawQuizzes.map((d, idx) => ({
+      id: String(d.id),
+      user_id: currentUser.id,
+      title: d.title || "Untitled Assessment",
+      subject: d.subject || "General",
+      sort_order: Number.isInteger(d.sortOrder) ? d.sortOrder : idx,
+      total_questions: Number(d.totalQuestions) || (d.questions ? d.questions.length : 0),
+      questions: d.questions || [],
+      uploaded_at: d.uploadedAt || new Date().toISOString(),
     }));
 
-    // 4. Format records to local structure
-    const formattedRecords = (cloudRecords || []).map(r => ({
+    const recordsPayload = rawRecords.map((r) => ({
+      id: String(r.id),
+      user_id: currentUser.id,
+      title: r.title || "Untitled Attempt",
+      date: r.date || new Date().toISOString().split("T")[0],
+      score: String(r.score || "0 / 0"),
+      percentage: String(r.percentage || "0%"),
+      mode: r.mode === "paper" ? "paper" : "device",
+      mistakes_count: Number(r.mistakesCount) || 0,
+      mistaken_indices: r.mistakenIndices || [],
+      flagged_indices: r.flaggedIndices || [],
+      questions: r.questions || [],
+      user_answers: r.userAnswers || {},
+    }));
+
+    if (decksPayload.length > 0) {
+      const { error: deckErr } = await sb.from("quiz_decks").upsert(decksPayload, { onConflict: "id" });
+      if (deckErr) throw deckErr;
+    }
+
+    if (recordsPayload.length > 0) {
+      const { error: recErr } = await sb.from("quiz_records").upsert(recordsPayload, { onConflict: "id" });
+      if (recErr) throw recErr;
+    }
+
+    const summaryMsg = `Cloud sync complete!\n• Decks synced: ${decksPayload.length}\n• Attempt records synced: ${recordsPayload.length}`;
+    typeof showToast === "function" ? showToast(summaryMsg) : alert(summaryMsg);
+  } catch (err) {
+    console.error("Cloud push failed:", err);
+    typeof showToast === "function" ? showToast("Push failed: " + err.message) : alert("Push failed: " + err.message);
+  } finally {
+    syncButtons.forEach((btn) => (btn.disabled = false));
+  }
+}
+
+async function pullCloudDataToLocalStorage() {
+  if (!currentUser) {
+    openAuthModal(pullCloudDataToLocalStorage);
+    return;
+  }
+
+  try {
+    const [decksRes, recordsRes] = await Promise.all([
+      sb.from("quiz_decks").select("*").eq("user_id", currentUser.id),
+      sb.from("quiz_records").select("*").eq("user_id", currentUser.id),
+    ]);
+
+    if (decksRes.error) throw decksRes.error;
+    if (recordsRes.error) throw recordsRes.error;
+
+    const cloudDecks = decksRes.data || [];
+    const cloudRecords = recordsRes.data || [];
+
+    if (cloudDecks.length === 0 && cloudRecords.length === 0) {
+      typeof showToast === "function" 
+        ? showToast("No cloud backups found for your account.") 
+        : alert("No cloud backups found for your account.");
+      return;
+    }
+
+    const normalizedDecks = cloudDecks.map((d) => ({
+      id: d.id,
+      title: d.title,
+      subject: d.subject,
+      sortOrder: d.sort_order ?? 0,
+      totalQuestions: d.total_questions || (d.questions ? d.questions.length : 0),
+      questions: d.questions || [],
+      uploadedAt: d.uploaded_at,
+    }));
+
+    const normalizedRecords = cloudRecords.map((r) => ({
       id: r.id,
       title: r.title,
       date: r.date,
       score: r.score,
       percentage: r.percentage,
-      mode: r.mode || 'device',
-      mistakesCount: r.mistakes_count,
-      mistakenIndices: r.mistaken_indices,
+      mode: r.mode || "device",
+      mistakesCount: r.mistakes_count ?? 0,
+      mistakenIndices: r.mistaken_indices || [],
       flaggedIndices: r.flagged_indices || [],
-      questions: r.questions,
-      userAnswers: r.user_answers
+      questions: r.questions || [],
+      userAnswers: r.user_answers || {},
     }));
 
-    // 5. Overwrite local caches completely
-    localStorage.setItem('quizzes', JSON.stringify(formattedDecks));
-    localStorage.setItem('quiz_records', JSON.stringify(formattedRecords));
-    cachedDecks = formattedDecks;
+    const localDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
+    const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
 
-    // 6. Refresh views, dropdowns, and stats
+    const deckMap = new Map();
+    localDecks.forEach((d) => deckMap.set(d.id, d));
+    normalizedDecks.forEach((d) => deckMap.set(d.id, d));
+
+    const recordMap = new Map();
+    localRecords.forEach((r) => recordMap.set(r.id, r));
+    normalizedRecords.forEach((r) => recordMap.set(r.id, r));
+
+    // 1. Commit merged maps into LocalStorage
+    localStorage.setItem("quizzes", JSON.stringify(Array.from(deckMap.values())));
+    localStorage.setItem("quiz_records", JSON.stringify(Array.from(recordMap.values())));
+
+    // 2. Re-render UI components so data displays immediately
     await renderQuizList();
     await renderRecordsTable();
-    populateEditQuizDropdown();
+    if (typeof populateEditQuizDropdown === "function") populateEditQuizDropdown();
     updateDashboardMetrics();
 
-    alert(
-      ` Cloud sync successful!\n\n` +
-      `• Quizzes restored: ${formattedDecks.length}\n` +
-      `• Records restored: ${formattedRecords.length}`
-    );
+    // 3. User notification
+    const pullSummary = `Successfully pulled from cloud!\n• Decks: ${normalizedDecks.length}\n• Attempt Records: ${normalizedRecords.length}`;
+    typeof showToast === "function" ? showToast(pullSummary) : alert(pullSummary);
+
   } catch (err) {
     console.error("Cloud pull failed:", err);
-    alert("Failed to pull from cloud: " + err.message);
+    typeof showToast === "function" 
+      ? showToast("Pull failed: " + err.message) 
+      : alert("Pull failed: " + err.message);
   }
-}
-
-function initBackgroundRunner() {
-  // Handled cleanly
-}
-
-// --- Live Dashboard Metrics Calculator ---
-function updateDashboardMetrics() {
-  let totalDecksCount = 0;
-  if (Array.isArray(cachedDecks) && cachedDecks.length > 0) {
-    totalDecksCount = cachedDecks.length;
-  } else {
-    try {
-      const localDecks = JSON.parse(localStorage.getItem('quizzes') || '[]');
-      totalDecksCount = localDecks.length;
-    } catch (e) {
-      totalDecksCount = 0;
-    }
-  }
-
-  let records = [];
-  try {
-    records = JSON.parse(localStorage.getItem('quiz_records') || '[]');
-  } catch (e) {
-    records = [];
-  }
-
-  const totalDecksEl = document.getElementById('dash-total-decks');
-  const totalAttemptsEl = document.getElementById('dash-total-attempts');
-  const avgAccuracyEl = document.getElementById('dash-avg-accuracy');
-
-  if (totalDecksEl) totalDecksEl.innerText = totalDecksCount;
-  if (totalAttemptsEl) totalAttemptsEl.innerText = records.length;
-
-  if (avgAccuracyEl) {
-    if (records.length === 0) {
-      avgAccuracyEl.innerText = '0%';
-    } else {
-      let sumPct = 0;
-      let validCount = 0;
-
-      records.forEach(r => {
-        let val = 0;
-        if (r.percentage !== undefined && r.percentage !== null) {
-          val = parseFloat(String(r.percentage).replace('%', ''));
-        } else if (r.score !== undefined && r.totalQuestions) {
-          val = (parseFloat(r.score) / parseFloat(r.totalQuestions)) * 100;
-        }
-
-        if (!isNaN(val)) {
-          sumPct += val;
-          validCount++;
-        }
-      });
-
-      avgAccuracyEl.innerText = validCount > 0 ? `${Math.round(sumPct / validCount)}%` : '0%';
-    }
-  }
-}
-
-// Realtime search bar filter
-function filterQuizzesRealtime(query) {
-  const term = query.toLowerCase().trim();
-  const cards = document.querySelectorAll('.quiz-card');
-
-  cards.forEach(card => {
-    const title = card.querySelector('strong')?.innerText.toLowerCase() || "";
-    const subject = card.dataset.subject?.toLowerCase() || "";
-    const matches = title.includes(term) || subject.includes(term);
-    card.style.display = matches ? 'flex' : 'none';
-  });
-
-  document.querySelectorAll('.subject-frame').forEach(frame => {
-    const visibleCards = frame.querySelectorAll('.quiz-card:not([style*="display: none"])');
-    frame.style.display = visibleCards.length > 0 ? 'block' : 'none';
-  });
-}
-
-function toggleCardMenu(event, quizId) {
-  event.stopPropagation();
-  const targetDropdown = document.getElementById(`card-menu-${quizId}`);
-  const isCurrentlyOpen = targetDropdown?.classList.contains('show');
-
-  document.querySelectorAll('.card-menu-dropdown').forEach(d => d.classList.remove('show'));
-
-  if (!isCurrentlyOpen && targetDropdown) {
-    targetDropdown.classList.add('show');
-  }
-}
-
-document.addEventListener('click', () => {
-  document.querySelectorAll('.card-menu-dropdown').forEach(d => d.classList.remove('show'));
-});
-
-function openCategorizeModal(quizId) {
-  document.querySelectorAll('.card-menu-dropdown').forEach(d => d.classList.remove('show'));
-
-  const targetQuiz = (cachedDecks || []).find(q => q.id === quizId);
-  if (!targetQuiz) return;
-
-  document.getElementById('categorize-quiz-id').value = quizId;
-  const input = document.getElementById('categorize-subject-input');
-  const select = document.getElementById('categorize-subject-select');
-  
-  const currentSubject = targetQuiz.subject || "General";
-  input.value = currentSubject;
-
-  const uniqueSubjects = Array.from(new Set((cachedDecks || []).map(d => d.subject || "General")));
-  
-  select.innerHTML = '<option value="">-- Choose Existing Subject --</option>';
-  uniqueSubjects.forEach(subj => {
-    const opt = document.createElement('option');
-    opt.value = subj;
-    opt.innerText = subj;
-    if (subj.toLowerCase() === currentSubject.toLowerCase()) {
-      opt.selected = true;
-    }
-    select.appendChild(opt);
-  });
-
-  const modal = document.getElementById('categorize-modal');
-  if (modal) modal.style.display = 'flex';
-}
-
-function syncCategorizeInput(val) {
-  if (val) {
-    document.getElementById('categorize-subject-input').value = val;
-  }
-}
-
-function closeCategorizeModal() {
-  const modal = document.getElementById('categorize-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-async function saveSubjectCategorization() {
-  const quizId = document.getElementById('categorize-quiz-id').value;
-  const newSubject = (document.getElementById('categorize-subject-input').value || "").trim() || "General";
-
-  if (!quizId) return;
-
-  try {
-    const { error } = await sb
-      .from('quiz_decks')
-      .update({ subject: newSubject })
-      .eq('id', quizId);
-
-    if (error) console.error("Cloud category update failed:", error);
-  } catch (err) {
-    console.error("Cloud category request error:", err);
-  }
-
-  const stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  const target = stored.find(q => q.id === quizId);
-  if (target) {
-    target.subject = newSubject;
-    localStorage.setItem('quizzes', JSON.stringify(stored));
-  }
-
-  const cachedTarget = (cachedDecks || []).find(q => q.id === quizId);
-  if (cachedTarget) {
-    cachedTarget.subject = newSubject;
-  }
-
-  closeCategorizeModal();
-  await renderQuizList();
-  updateDashboardMetrics();
-}
-
-function toggleSubjectCollapse(safeSubjId) {
-  const frame = document.getElementById(`subject-frame-${safeSubjId}`);
-  if (!frame) return;
-
-  const isCollapsed = frame.classList.toggle('is-collapsed');
-  const pillSpan = frame.querySelector('.subject-toggle-pill span:first-child');
-  const arrow = frame.querySelector('.subject-toggle-arrow');
-
-  const deckCount = frame.querySelectorAll('.quiz-card').length;
-  const countText = `${deckCount} Deck${deckCount > 1 ? 's' : ''}`;
-
-  if (isCollapsed) {
-    if (pillSpan) pillSpan.innerText = `${countText} (Hidden)`;
-    if (arrow) arrow.innerText = '◀';
-  } else {
-    if (pillSpan) pillSpan.innerText = countText;
-    if (arrow) arrow.innerText = '▼';
-  }
-}
-
-function copyAIPromptTemplate(btnElement) {
-  const promptText = `Please generate a quiz about [TOPIC/DOCUMENT]. 
-Strictly format the output exactly as follows:
-
-1. [Question text here]
-a. [Option A]
-b. [Option B]
-c. [Option C]
-d. [Option D]
-
-2. [Question text here]
-a. [Option A]
-b. [Option B]
-c. [Option C]
-d. [Option D]
-
-Answer Key:
-1. a - [Explanation / rationale]
-2. b - [Explanation / rationale]`;
-
-  navigator.clipboard.writeText(promptText).then(() => {
-    const originalHTML = btnElement.innerHTML;
-    btnElement.classList.add('copied');
-    btnElement.innerHTML = `<span>✓</span> <span>Copied to Clipboard!</span>`;
-
-    setTimeout(() => {
-      btnElement.classList.remove('copied');
-      btnElement.innerHTML = originalHTML;
-    }, 2200);
-  }).catch(err => {
-    console.error("Clipboard copy failed:", err);
-  });
 }
