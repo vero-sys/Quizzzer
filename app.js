@@ -319,11 +319,15 @@ function updateAuthSidebar(user) {
 /* --------------------------------------------------------------------------
    6. QUIZ LIBRARY & DECK CONTROLS (LOCAL-FIRST)
    -------------------------------------------------------------------------- */
+
 async function renderQuizList() {
   const container = document.getElementById("available-quiz-list");
   if (!container) return;
 
-  cachedDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  // Read all decks and filter down strictly to active entries
+  const rawStored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  cachedDecks = rawStored.filter((deck) => deck.isActive !== false);
+
   populateEditQuizDropdown();
   updateDashboardMetrics();
   container.innerHTML = "";
@@ -401,7 +405,6 @@ async function renderQuizList() {
     container.appendChild(frame);
   });
 }
-
 function filterQuizzesRealtime(query) {
   const term = query.toLowerCase().trim();
   const libraryContainer = document.getElementById('available-quiz-list');
@@ -658,11 +661,16 @@ async function saveSubjectCategorization() {
 async function deleteQuiz(quizId) {
   if (!confirm("Are you sure you want to remove this quiz from your local library?")) return;
 
-  let stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  stored = stored.filter((q) => q.id !== quizId);
-  localStorage.setItem("quizzes", JSON.stringify(stored));
-  cachedDecks = cachedDecks.filter((q) => q.id !== quizId);
+  let stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
+  
+  // Soft delete locally: mark as inactive so the deletion syncs to cloud on next push
+  const target = stored.find(q => q.id === quizId);
+  if (target) {
+    target.isActive = false;
+  }
+  localStorage.setItem('quizzes', JSON.stringify(stored));
 
+  // Re-render library showing only active decks
   await renderQuizList();
   updateDashboardMetrics();
 }
@@ -1442,12 +1450,16 @@ function populateEditQuizDropdown() {
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
   dropdown.innerHTML = `<option value="">-- Choose a quiz to load --</option>`;
-  stored.forEach((quiz) => {
-    const opt = document.createElement("option");
-    opt.value = quiz.id;
-    opt.innerText = `${quiz.title} (${quiz.totalQuestions} items)`;
-    dropdown.appendChild(opt);
-  });
+
+  // Filter out soft-deleted / inactive decks
+  stored
+    .filter((quiz) => quiz.isActive !== false)
+    .forEach((quiz) => {
+      const opt = document.createElement("option");
+      opt.value = quiz.id;
+      opt.innerText = `${quiz.title} (${quiz.totalQuestions} items)`;
+      dropdown.appendChild(opt);
+    });
 }
 
 function startFreshQuizCreation() {
@@ -1958,6 +1970,7 @@ function handleBackupFileSelect(event) {
 /* --------------------------------------------------------------------------
    14. MANUAL CLOUD SYNCHRONIZATION (SUPABASE)
    -------------------------------------------------------------------------- */
+
 async function pushLocalDataToSupabase() {
   if (!currentUser) {
     openAuthModal(pushLocalDataToSupabase);
@@ -1985,6 +1998,7 @@ async function pushLocalDataToSupabase() {
       total_questions: Number(d.totalQuestions) || (d.questions ? d.questions.length : 0),
       questions: d.questions || [],
       uploaded_at: d.uploadedAt || new Date().toISOString(),
+      is_active: d.isActive !== false // defaults to true unless marked false
     }));
 
     const recordsPayload = rawRecords.map((r) => ({
@@ -2022,6 +2036,7 @@ async function pushLocalDataToSupabase() {
   }
 }
 
+
 async function pullCloudDataToLocalStorage() {
   if (!currentUser) {
     openAuthModal(pullCloudDataToLocalStorage);
@@ -2055,6 +2070,7 @@ async function pullCloudDataToLocalStorage() {
       totalQuestions: d.total_questions || (d.questions ? d.questions.length : 0),
       questions: d.questions || [],
       uploadedAt: d.uploaded_at,
+      isActive: d.is_active !== false // reads status from Supabase
     }));
 
     const normalizedRecords = cloudRecords.map((r) => ({
