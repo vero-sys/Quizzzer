@@ -743,6 +743,59 @@ select {
 /* ==========================================================================
    9. QUIZ RUNNER & IMMERSIVE FOCUS MODE
    ========================================================================== */
+/* Segmented Progress Track */
+.quiz-progress-track {
+  width: 100%;
+  height: 8px;
+  display: flex;
+  gap: 3px;
+  background: transparent;
+  margin: 14px 0 20px 0;
+  position: relative;
+}
+
+/* Individual Segment */
+.quiz-progress-step {
+  flex: 1;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--border-subtle);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.quiz-progress-step:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+/* Answered: Flowing Blue-Teal Gradient */
+.quiz-progress-step.is-answered {
+  background: linear-gradient(90deg, #2563eb, #06b6d4, #14b8a6, #2563eb);
+  background-size: 300% 100%;
+  animation: flowingGradientShift 4s linear infinite;
+}
+
+/* Skipped: Crisp Warning Red */
+.quiz-progress-step.is-skipped {
+  background: var(--red) !important;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+}
+
+/* Current Active Position Indicator */
+.quiz-progress-step.is-current {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 1px;
+}
+
+@keyframes flowingGradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
 
 #active-options-list {
   display: flex !important;
@@ -863,25 +916,54 @@ select {
    10. ATTEMPT REVIEW & DEEP-DIVE CARDS
    ========================================================================== */
 
+.review-card-key-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.review-key-select {
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary);
+  outline: none;
+  cursor: pointer;
+}
+
+.review-key-select:focus {
+  border-color: var(--primary);
+}
+
 .review-item-card {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 14px;
-}
-
-.review-item-card.is-wrong {
-  border-left: 5px solid var(--red);
+  padding: 22px;
+  margin-bottom: 16px;
+  transition: border-color 0.18s ease;
 }
 
 .review-item-card.is-correct {
-  border-left: 5px solid #2563eb !important;
+  border-color: #bfdbfe;
+}
+
+.review-item-card.is-wrong {
+  border-color: #fecaca;
 }
 
 .review-item-card.is-flagged {
-  border-left: 5px solid var(--amber) !important;
-  background: #fffdf5 !important;
+  border-color: #fde68a;
+  background: #fffdf7;
 }
 
 .review-item-badge {
@@ -1121,7 +1203,98 @@ td:last-child {
   padding: 24px 16px;
   cursor: pointer;
   text-align: center;
+  transition: all 0.2s ease;
+  user-select: none;
 }
+
+.mode-card-btn:hover {
+  border-color: var(--primary-light);
+  background: var(--surface-alt);
+}
+
+.mode-card-btn.selected {
+  border-color: var(--primary) !important;
+  background: var(--accent-mint) !important;
+  color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary) inset !important;
+}
+
+/* Pen & Paper Grid & Mistake Toggle Chips */
+#paper-items-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-height: 44vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.paper-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mistake-check-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s ease;
+}
+
+.mistake-check-item:hover {
+  background: #ffffff;
+  border-color: var(--border-subtle);
+  transform: translateY(-1px);
+}
+
+/* Checkbox Indicator Circle */
+.mistake-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border-subtle);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: transparent;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+/* Active Wrong / Mistake Selected State */
+.mistake-check-item.is-wrong {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+}
+
+.mistake-check-item.is-wrong .mistake-box {
+  background: var(--red) !important;
+  border-color: var(--red) !important;
+  color: #ffffff !important;
+}
+
+.mistake-check-item.is-wrong .mistake-box::after {
+  content: "✕";
+}
+
+.mode-card-btn.selected svg {
+  stroke: var(--primary);
+}
+
 
 /* ==========================================================================
    AI PROMPT HELPER BANNER (MODERN FLUENT CARD)
