@@ -320,6 +320,15 @@ function updateAuthSidebar(user) {
    6. QUIZ LIBRARY & DECK CONTROLS (LOCAL-FIRST)
    -------------------------------------------------------------------------- */
 
+function isDeckNew(uploadedAtStr, daysThreshold = 3) {
+  if (!uploadedAtStr) return false;
+  const uploadedDate = new Date(uploadedAtStr);
+  if (isNaN(uploadedDate.getTime())) return false;
+  const diffTime = Date.now() - uploadedDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= daysThreshold;
+}
+
 async function renderQuizList() {
   const container = document.getElementById("available-quiz-list");
   if (!container) return;
@@ -367,6 +376,9 @@ async function renderQuizList() {
 
     const listContainer = frame.querySelector(".subject-quiz-list");
     decks.forEach((quiz) => {
+      const isNew = isDeckNew(quiz.uploadedAt);
+      const newBadgeHtml = isNew ? `<span class="deck-new-badge">NEW</span>` : "";
+
       const card = document.createElement("div");
       card.className = "quiz-card";
       card.draggable = true;
@@ -381,9 +393,9 @@ async function renderQuizList() {
           </svg>
         </div>
         <div class="quiz-card-info">
-          <strong>${quiz.title}</strong>
+          <strong>${quiz.title}</strong>${newBadgeHtml}
           <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
-            ${quiz.totalQuestions} Questions &bull; Added on ${quiz.uploadedAt}
+            ${quiz.totalQuestions} Questions &bull; Added on${quiz.uploadedAt}
           </p>
         </div>
         <div class="quiz-card-actions">
