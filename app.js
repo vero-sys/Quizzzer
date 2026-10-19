@@ -27,9 +27,11 @@ let currentQuestionIdx = 0;
 let currentQuizMode = "device"; // "device" | "paper"
 let pendingQuizForMode = null;
 let userAnswers = {};
+let visitedQuestions = new Set();
 let flaggedQuestions = new Set();
 let selectedPaperMistakes = new Set();
 let currentSummaryReviewItems = [];
+let isQuizShuffleEnabled = false;
 
 // Records and Table State
 let currentRecordsCache = [];
@@ -171,8 +173,14 @@ function showStatus(elementId, message, statusType) {
 }
 
 function copyAIPromptTemplate(btnElement) {
-  const promptText = `Please generate a quiz about [TOPIC/DOCUMENT]. 
-Strictly format the output exactly as follows:
+  const promptText = `Please generate a multiple-choice quiz about [TOPIC/DOCUMENT].
+
+Rules:
+- Exactly 4 options per question (a, b, c, d).
+- Do not escape dots with backslashes (use "1." not "1\\.").
+- Provide a clear rationale for each answer.
+
+Strictly format the output as follows:
 
 1. [Question text here]
 a. [Option A]
@@ -181,7 +189,9 @@ c. [Option C]
 d. [Option D]
 
 Answer Key:
-1. a - [Explanation / rationale]`;
+1. a - [Explanation / rationale here]
+
+Randomize the letter answers, do not make the choices have the same letter in consecutive order`;
 
   navigator.clipboard.writeText(promptText).then(() => {
     const originalHtml = btnElement.innerHTML;
@@ -709,6 +719,12 @@ function launchQuizById(quizId) {
     if (totalHint) totalHint.innerText = `/ ${total} items`;
     if (maxLabel) maxLabel.innerText = `${total} items (All)`;
   }
+  
+  isQuizShuffleEnabled = false;
+  const shuffleBtn = document.getElementById("btn-toggle-shuffle");
+  const shuffleLabel = document.getElementById("shuffle-btn-text");
+  if (shuffleBtn) shuffleBtn.classList.remove("selected");
+  if (shuffleLabel) shuffleLabel.innerText = "Question Order: Normal";
 
   modal ? (modal.style.display = "flex") : startQuizSession(quiz, "device");
 }
@@ -727,6 +743,28 @@ function syncInputFromSlider(val) {
   if (input) input.value = val;
 }
 
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function toggleQuizShuffle() {
+  isQuizShuffleEnabled = !isQuizShuffleEnabled;
+  const btn = document.getElementById("btn-toggle-shuffle");
+  const label = document.getElementById("shuffle-btn-text");
+
+  if (btn) btn.classList.toggle("selected", isQuizShuffleEnabled);
+  if (label) {
+    label.innerText = isQuizShuffleEnabled
+      ? "Question Order: Shuffled 🔀"
+      : "Question Order: Normal";
+  }
+}
+
 function selectQuizMode(mode) {
   currentQuizMode = mode;
   const targetQuiz = pendingQuizForMode;
@@ -742,10 +780,15 @@ function selectQuizMode(mode) {
 
   closeQuizModeModal();
   if (targetQuiz) {
+    let chosenQuestions = targetQuiz.questions.slice(0, limit);
+    if (isQuizShuffleEnabled) {
+      chosenQuestions = shuffleArray(chosenQuestions);
+    }
+
     const limitedInstance = {
       ...targetQuiz,
       totalQuestions: limit,
-      questions: targetQuiz.questions.slice(0, limit),
+      questions: chosenQuestions,
     };
     switchView("take");
     startQuizSession(limitedInstance, mode);
@@ -764,6 +807,7 @@ function startQuizSession(quiz, mode = "device") {
   currentQuizMode = mode;
   currentQuestionIdx = 0;
   flaggedQuestions.clear();
+  visitedQuestions.clear();
   userAnswers = {};
 
   document.getElementById("quiz-deck-view").style.display = "none";
@@ -776,11 +820,53 @@ function startQuizSession(quiz, mode = "device") {
   renderActiveQuestion();
 }
 
+function renderSegmentedProgressBar() {
+  const track = document.getElementById("quiz-progress-segments-track");
+  if (!track || !activeQuizInstance || !activeQuizInstance.questions) return;
+
+  const total = activeQuizInstance.questions.length;
+  track.innerHTML = "";
+
+  for (let i = 0; i < total; i++) {
+    const step = document.createElement("div");
+    step.className = "quiz-progress-step";
+
+    const hasAnswer = !!userAnswers[i];
+    const isVisited = visitedQuestions.has(i);
+    const isCurrent = i === currentQuestionIdx;
+
+    if (hasAnswer) {
+      step.classList.add("is-answered");
+      step.title = `Question ${i + 1}: Answered`;
+    } else if (isVisited && !isCurrent) {
+      // Visited and left without answering -> highlight red
+      step.classList.add("is-skipped");
+      step.title = `Question ${i + 1}: Skipped (No answer)`;
+    } else {
+      step.title = `Question ${i + 1}`;
+    }
+
+    if (isCurrent) {
+      step.classList.add("is-current");
+    }
+
+    step.onclick = () => {
+      currentQuestionIdx = i;
+      renderActiveQuestion();
+    };
+
+    track.appendChild(step);
+  }
+}
+
 function renderActiveQuestion() {
   const q = activeQuizInstance.questions[currentQuestionIdx];
   const total = activeQuizInstance.questions.length;
 
+  visitedQuestions.add(currentQuestionIdx);
   document.getElementById("active-progress").innerText = `Question ${currentQuestionIdx + 1} of ${total}`;
+  renderSegmentedProgressBar();
+  
   document.getElementById("active-q-text").innerText = `${q.id}. ${q.question}`;
 
   const optionsBox = document.getElementById("active-options-list");
@@ -805,8 +891,19 @@ function renderActiveQuestion() {
   document.getElementById("btn-prev-q").style.visibility = currentQuestionIdx === 0 ? "hidden" : "visible";
   const isLast = currentQuestionIdx === total - 1;
   document.getElementById("btn-next-q").style.display = isLast ? "none" : "inline-block";
-  document.getElementById("btn-finish-q").style.display = isLast ? "inline-block" : "none";
-
+  
+  const finishBtn = document.getElementById("btn-finish-q");
+  if (finishBtn) {
+    finishBtn.style.display = isLast ? "inline-block" : "none";
+    if (currentQuizMode === "paper") {
+      finishBtn.innerText = "Log Mistakes & Finish";
+      finishBtn.onclick = () => openPaperScoreModal();
+    } else {
+      finishBtn.innerText = "Submit Quiz";
+      finishBtn.onclick = () => submitQuizAttempt();
+    }
+  }
+  
   const expBox = document.getElementById("active-explanation");
   expBox.style.display = "none";
   expBox.innerText = "";
@@ -816,6 +913,7 @@ function renderActiveQuestion() {
 function selectOption(letter) {
   userAnswers[currentQuestionIdx] = letter;
   renderActiveQuestion();
+  renderSegmentedProgressBar();
 }
 
 function changeQuestion(step) {
@@ -875,6 +973,12 @@ function finishAndReturnToLibrary() {
 // On-Device Attempt Submission
 async function submitQuizAttempt() {
   if (!activeQuizInstance || !activeQuizInstance.questions) return;
+  
+  // If in pen & paper mode, redirect directly to mistake logging
+  if (currentQuizMode === "paper") {
+    openPaperScoreModal();
+    return;
+  }
 
   const total = activeQuizInstance.questions.length;
   let score = 0;
@@ -979,7 +1083,10 @@ function openPaperScoreModal() {
 
   updatePaperMistakeSummary(total);
   const modal = document.getElementById("paper-score-modal");
-  if (modal) modal.style.display = "flex";
+  if (modal) {
+    modal.style.display = "flex";
+    modal.style.zIndex = "99999";
+  }
 }
 
 function togglePaperMistake(index) {
@@ -1077,6 +1184,75 @@ function filterSummaryReview(filterType) {
   renderSummaryReviewItems(filtered);
 }
 
+function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
+  if (!activeQuizInstance || !activeQuizInstance.questions) return;
+
+  const targetQ = activeQuizInstance.questions[questionOriginalIdx];
+  if (!targetQ) return;
+
+  const oldAnswerKey = targetQ.answer;
+  targetQ.answer = newAnswerKey.toLowerCase();
+
+  // 1. Persist the updated key to the permanent library in localStorage for future sessions
+  try {
+    const storedQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
+    const targetDeck = storedQuizzes.find((d) => d.id === activeQuizInstance.id);
+    if (targetDeck && targetDeck.questions) {
+      const deckQ = targetDeck.questions.find((q, idx) => (q.id === targetQ.id || idx === questionOriginalIdx));
+      if (deckQ) {
+        deckQ.answer = targetQ.answer;
+        localStorage.setItem("quizzes", JSON.stringify(storedQuizzes));
+      }
+    }
+  } catch (err) {
+    console.error("Failed to update permanent quiz key:", err);
+  }
+
+  // 2. Recalculate the active review items array and score
+  let newScore = 0;
+  const total = activeQuizInstance.questions.length;
+
+  currentSummaryReviewItems.forEach((item) => {
+    if (item.originalIndex === questionOriginalIdx) {
+      item.answer = targetQ.answer;
+    }
+    const userChoice = item.chosenAnswer;
+    const isCorrect = userChoice && item.answer && userChoice.toLowerCase() === item.answer.toLowerCase();
+    item.isCorrect = !!isCorrect;
+    if (item.isCorrect) newScore++;
+  });
+
+  const pct = total > 0 ? Math.round((newScore / total) * 100) : 0;
+  const scoreDisplay = document.getElementById("result-score-display") || document.getElementById("summary-score-text");
+  if (scoreDisplay) scoreDisplay.innerText = `${newScore} / ${total} (${pct}%)`;
+
+  // 3. Update the logged attempt record in quiz_records
+  try {
+    const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+    if (localRecords.length > 0) {
+      const latestRecord = localRecords[0];
+      latestRecord.score = `${newScore} / ${total}`;
+      latestRecord.percentage = `${pct}%`;
+      latestRecord.mistakesCount = total - newScore;
+      latestRecord.mistakenIndices = currentSummaryReviewItems.filter((i) => !i.isCorrect).map((i) => i.originalIndex);
+      latestRecord.questions = activeQuizInstance.questions;
+      localStorage.setItem("quiz_records", JSON.stringify(localRecords));
+      currentRecordsCache = localRecords;
+      updateRecordFilterCounts(currentRecordsCache);
+      renderFilteredRecordsRows();
+    }
+  } catch (err) {
+    console.error("Failed to update attempt record with new key:", err);
+  }
+
+  // 4. Refresh review counts and re-render the view
+  updateSummaryFilterPillCounts(currentSummaryReviewItems);
+  const activePill = document.querySelector(".summary-filter-pills .summary-pill.active");
+  const currentFilter = activePill ? (activePill.getAttribute("onclick").match(/'([^']+)'/) || [])[1] || "all" : "all";
+  filterSummaryReview(currentFilter);
+  updateDashboardMetrics();
+}
+
 function renderSummaryReviewItems(items) {
   const container = document.getElementById("summary-wrong-items-container");
   const list = document.getElementById("summary-wrong-items-list");
@@ -1121,11 +1297,22 @@ function renderSummaryReviewItems(items) {
       ? `<span class="review-item-badge badge-correct">Question ${q.id} &bull; Correct</span>`
       : `<span class="review-item-badge badge-wrong">Question ${q.id} &bull; Incorrect</span>`;
 
+    const optionsDropdownHtml = q.options.map((opt) => {
+      const isSelected = q.answer && q.answer.toLowerCase() === opt.letter.toLowerCase();
+      return `<option value="${opt.letter.toLowerCase()}" ${isSelected ? "selected" : ""}>Option ${opt.letter.toUpperCase()}</option>`;
+    }).join("");
+
     card.innerHTML = `
       <div style="display: flex; gap: 6px; margin-bottom: 8px;">${badgesHtml}</div>
       <div style="font-weight: 800; font-size: 0.98rem; margin-bottom: 8px;">${q.id}. ${q.question}</div>
       <div class="review-options-list">${optionsHtml}</div>
       ${q.explanation ? `<div class="explanation-callout" style="margin-top: 10px;"><strong>Rationale:</strong> ${q.explanation}</div>` : ""}
+      <div class="review-card-key-control">
+        <span>Correct Key:</span>
+        <select class="review-key-select" onchange="updateQuestionAnswerKey(${q.originalIndex}, this.value)">
+          ${optionsDropdownHtml}
+        </select>
+      </div>
     `;
     list.appendChild(card);
   });
@@ -1688,49 +1875,110 @@ async function handleFileUpload(e) {
 }
 
 function parseFormattedText(rawText) {
-  const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-  const questionSection = [];
-  const answerSection = [];
-  let inAnswers = false;
+  if (!rawText || !rawText.trim()) return [];
 
-  for (let line of lines) {
-    if (/^(answers?|answer\s*key|rationales?):?/i.test(line)) {
-      inAnswers = true;
-      continue;
+  // Strip markdown backslash-escapes (e.g. "1\." -> "1.")
+  const cleanedText = rawText.replace(/\\([.\-\)])/g, "$1");
+  const lines = cleanedText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+
+  // 1. Separate questions block and answer key block
+  let splitIndex = -1;
+  const answerSectionHeaderRegex = /^(?:answer\s*keys?|answers?|solutions?|correct\s*answers?|rationales?)\b[\s\:\-\=]*$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (answerSectionHeaderRegex.test(lines[i])) {
+      splitIndex = i;
+      break;
     }
-    inAnswers ? answerSection.push(line) : questionSection.push(line);
   }
+
+  const questionLines = splitIndex !== -1 ? lines.slice(0, splitIndex) : lines;
+  const answerLines = splitIndex !== -1 ? lines.slice(splitIndex + 1) : [];
 
   const questions = [];
   let curQ = null;
 
-  for (let line of questionSection) {
-    const qMatch = line.match(/^(\d+)[\.\)]\s*(.+)/i);
-    const optMatch = line.match(/^([a-d])[\.\)]\s*(.+)/i);
+  // Question regex: handles "1.", "1)", "Q1.", "Question 1:", "Item 1."
+  const qStartRegex = /^(?:q(?:uestion)?\.?|item)?\s*\(?(\d+)\)?[\.\:\-\)]\s*(.*)/i;
+  // Inline answers/explanations
+  const inlineAnsRegex = /^(?:correct\s*)?(?:answer|ans)\s*[\:\-\=]\s*\(?([a-e])\)?[\.\:\-\)]?\s*(.*)/i;
+  const inlineExpRegex = /^(?:rationale|explanation|reason)\s*[\:\-\=]\s*(.*)/i;
 
-    if (qMatch) {
+  for (let line of questionLines) {
+    const qMatch = line.match(qStartRegex);
+    const inlineAnsMatch = line.match(inlineAnsRegex);
+    const inlineExpMatch = line.match(inlineExpRegex);
+
+    if (qMatch && !inlineAnsMatch && !inlineExpMatch) {
       if (curQ) questions.push(curQ);
-      curQ = { id: parseInt(qMatch[1], 10), question: qMatch[2].trim(), options: [], answer: "", explanation: "" };
-    } else if (optMatch && curQ) {
-      curQ.options.push({ letter: optMatch[1].toLowerCase(), text: optMatch[2].trim() });
-    } else if (curQ && curQ.options.length === 0) {
-      curQ.question += " " + line;
+      curQ = {
+        id: parseInt(qMatch[1], 10),
+        question: qMatch[2] ? qMatch[2].trim() : "",
+        options: [],
+        answer: "",
+        explanation: ""
+      };
+    } else if (inlineAnsMatch && curQ) {
+      curQ.answer = inlineAnsMatch[1].toLowerCase();
+      if (inlineAnsMatch[2]) {
+        curQ.explanation = inlineAnsMatch[2].replace(/^(?:explanation|rationale)\s*[\:\-\=]\s*/i, "").trim();
+      }
+    } else if (inlineExpMatch && curQ) {
+      curQ.explanation = inlineExpMatch[1].trim();
+    } else if (curQ) {
+      // Check if line contains inline options (e.g. "a. Cat b. Dog c. Bird d. Fish")
+      const inlineMatches = [...line.matchAll(/(?:^|\s+)(?:option\s*)?\(?([a-e])\)?[\.\:\-\)\]]\s*([^\s].*?)(?=(?:\s+(?:option\s*)?\(?[a-e]\)?[\.\:\-\)\]])|$)/gi)];
+
+      if (inlineMatches.length > 0 && curQ.options.length === 0) {
+        inlineMatches.forEach((m) => {
+          if (curQ.options.length < 5) {
+            curQ.options.push({
+              letter: m[1].toLowerCase(),
+              text: m[2].trim()
+            });
+          }
+        });
+      } else {
+        // Fallback for single options on their own line: "a. Some text"
+        const singleOptMatch = line.match(/^(?:option\s*)?\(?([a-e])\)?[\.\:\-\)\]]\s*(.+)/i);
+        if (singleOptMatch && curQ.options.length < 5) {
+          curQ.options.push({
+            letter: singleOptMatch[1].toLowerCase(),
+            text: singleOptMatch[2].trim()
+          });
+        } else if (curQ.options.length === 0) {
+          // Wrapped question prompt continuation
+          curQ.question = curQ.question ? `${curQ.question} ${line}` : line;
+        } else {
+          // Wrapped last option continuation
+          const lastOpt = curQ.options[curQ.options.length - 1];
+          lastOpt.text += " " + line;
+        }
+      }
     }
   }
   if (curQ) questions.push(curQ);
 
-  for (let line of answerSection) {
-    const ansMatch = line.match(/^(\d+)[\.\)]\s*([a-d])?[\.\-\:\)]?\s*(.*)/i);
+  // 2. Parse bottom answer key section
+  for (let line of answerLines) {
+    const ansMatch = line.match(/^(?:q(?:uestion)?\.?|item)?\s*\(?(\d+)\)?[\.\:\-\)]\s*\(?([a-e])\)?[\.\:\-\)]?\s*(.*)/i);
     if (ansMatch) {
       const num = parseInt(ansMatch[1], 10);
       const qObj = questions.find((q) => q.id === num);
       if (qObj) {
         if (ansMatch[2]) qObj.answer = ansMatch[2].toLowerCase();
-        qObj.explanation = ansMatch[3] ? ansMatch[3].replace(/^(explanation|rationale):?\s*/i, "").trim() : "";
+        if (ansMatch[3]) {
+          qObj.explanation = ansMatch[3].replace(/^(?:explanation|rationale)\s*[\:\-\=]\s*/i, "").trim();
+        }
       }
     }
   }
-  return questions;
+
+  // 3. Normalize IDs sequentially
+  return questions.map((q, index) => ({
+    ...q,
+    id: index + 1
+  }));
 }
 
 function parseJSON(text) {
