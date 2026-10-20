@@ -32,6 +32,7 @@ let flaggedQuestions = new Set();
 let selectedPaperMistakes = new Set();
 let currentSummaryReviewItems = [];
 let isQuizShuffleEnabled = false;
+let isWeakSpotsDrillActive = false;
 
 // Records and Table State
 let currentRecordsCache = [];
@@ -339,6 +340,179 @@ function isDeckNew(uploadedAtStr, daysThreshold = 3) {
   return diffDays >= 0 && diffDays <= daysThreshold;
 }
 
+function getMistakeBank() {
+  let bank = {};
+  try {
+    bank = JSON.parse(localStorage.getItem("quiz_mistake_bank") || "{}");
+  } catch {
+    bank = {};
+  }
+
+  // Auto-backfill from historical quiz_records if the bank is currently empty
+  if (Object.keys(bank).length === 0) {
+    try {
+      const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+      records.forEach((rec) => {
+        if (!rec.questions || !Array.isArray(rec.mistakenIndices)) return;
+        rec.mistakenIndices.forEach((idx) => {
+          const q = rec.questions[idx];
+          if (!q || !q.question) return;
+          const key = `${rec.id || "rec"}_${q.id || idx}_${q.question.trim().slice(0, 30)}`;
+          if (!bank[key]) {
+            bank[key] = {
+              id: key,
+              deckId: rec.id || "historical",
+              question: q,
+              fail_count: 1,
+              is_mastered: false,
+              historical_mistake: true,
+              last_failed_at: rec.date || new Date().toISOString().split("T")[0]
+            };
+          } else {
+            bank[key].fail_count = (bank[key].fail_count || 1) + 1;
+          }
+        });
+      });
+      if (Object.keys(bank).length > 0) {
+        saveMistakeBank(bank);
+      }
+    } catch (e) {
+      console.warn("Backfill note:", e);
+    }
+  }
+
+  return bank;
+}
+
+function saveMistakeBank(bank) {
+  localStorage.setItem("quiz_mistake_bank", JSON.stringify(bank));
+}
+
+function recordQuestionMistake(questionObj, deckId = "general") {
+  if (!questionObj || !questionObj.question) return;
+
+  const key = `${deckId}_${questionObj.id}_${questionObj.question.trim().slice(0, 30)}`;
+  const bank = getMistakeBank();
+
+  if (!bank[key]) {
+    bank[key] = {
+      id: key,
+      deckId: deckId,
+      question: questionObj,
+      fail_count: 1,
+      is_mastered: false,
+      historical_mistake: true,
+      last_failed_at: new Date().toISOString().split("T")[0]
+    };
+  } else {
+    bank[key].fail_count = (bank[key].fail_count || 0) + 1;
+    bank[key].is_mastered = false; // re-activates if missed again
+    bank[key].last_failed_at = new Date().toISOString().split("T")[0];
+  }
+
+  saveMistakeBank(bank);
+}
+
+
+function renderWeakSpotsBanner() {
+  const container = document.getElementById("weak-spots-deck-container");
+  if (!container) return;
+
+  const bank = getMistakeBank();
+  const allEntries = Object.values(bank);
+  const activeMistakes = allEntries.filter((item) => item.is_mastered !== true);
+
+  // If no mistakes ever recorded in history
+  if (allEntries.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  // If all mistakes have been graduated and mastered
+  if (activeMistakes.length === 0) {
+    container.innerHTML = `
+      <div class="weak-spots-card" style="border-color: #86efac; background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);">
+        <div class="weak-spots-icon" style="background: #dcfce7; color: #15803d; border-color: #86efac;">🎉</div>
+        <div class="quiz-card-info">
+          <strong>Weak Spots Cleared!</strong>
+          <span class="weak-spots-badge" style="background: #22c55e;">100% Mastered</span>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+            All ${allEntries.length} recorded mistakes have been successfully cleared.
+          </p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Standard Active Card
+  container.innerHTML = `
+    <div class="weak-spots-card">
+      <div class="weak-spots-icon">🧠</div>
+      <div class="quiz-card-info">
+        <strong>Weak Spots Drill Challenge</strong>
+        <span class="weak-spots-badge">Mistake Bank</span>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+          ${activeMistakes.length} Active Mistake${activeMistakes.length > 1 ? "s" : ""} to Master &bull; Lifetime Recorded: ${allEntries.length}
+        </p>
+      </div>
+      <div class="quiz-card-actions">
+        <button class="btn" type="button" style="background: var(--amber); border-color: var(--amber);" onclick="launchWeakSpotsDrill()">
+          Start Practice
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function launchWeakSpotsDrill() {
+  const bank = getMistakeBank();
+  const activeMistakes = Object.values(bank).filter((item) => item.is_mastered !== true);
+  if (activeMistakes.length === 0) return;
+
+  // Build a synthetic quiz instance
+  const syntheticQuestions = activeMistakes.map((entry, idx) => ({
+    ...entry.question,
+    id: idx + 1,
+    bankKey: entry.id,
+    failCount: entry.fail_count
+  }));
+
+  const syntheticQuiz = {
+    id: "weak_spots_drill_deck",
+    title: "Weak Spots Drill Challenge",
+    subject: "Mastery Bank",
+    totalQuestions: syntheticQuestions.length,
+    questions: syntheticQuestions,
+    isWeakSpots: true
+  };
+
+  isWeakSpotsDrillActive = true;
+  pendingQuizForMode = syntheticQuiz;
+
+  const total = syntheticQuestions.length;
+  const modal = document.getElementById("quiz-mode-modal");
+  const input = document.getElementById("mode-item-count-input");
+  const slider = document.getElementById("mode-item-range-slider");
+  const totalHint = document.getElementById("mode-total-hint");
+  const maxLabel = document.getElementById("slider-max-label");
+
+  if (input && slider) {
+    input.min = 1; input.max = total; input.value = total;
+    slider.min = 1; slider.max = total; slider.value = total;
+    if (totalHint) totalHint.innerText = `/ ${total} items`;
+    if (maxLabel) maxLabel.innerText = `${total} items (All)`;
+  }
+
+  isQuizShuffleEnabled = true; // Default to shuffled for drill
+  const shuffleBtn = document.getElementById("btn-toggle-shuffle");
+  const shuffleLabel = document.getElementById("shuffle-btn-text");
+  if (shuffleBtn) shuffleBtn.classList.add("selected");
+  if (shuffleLabel) shuffleLabel.innerText = "Question Order: Shuffled 🔀";
+
+  modal ? (modal.style.display = "flex") : startQuizSession(syntheticQuiz, "device");
+}
+
 async function renderQuizList() {
   const container = document.getElementById("available-quiz-list");
   if (!container) return;
@@ -349,6 +523,7 @@ async function renderQuizList() {
 
   populateEditQuizDropdown();
   updateDashboardMetrics();
+  renderWeakSpotsBanner();
   container.innerHTML = "";
 
   if (cachedDecks.length === 0) {
@@ -427,6 +602,7 @@ async function renderQuizList() {
     container.appendChild(frame);
   });
 }
+
 function filterQuizzesRealtime(query) {
   const term = query.toLowerCase().trim();
   const libraryContainer = document.getElementById('available-quiz-list');
@@ -985,12 +1161,24 @@ async function submitQuizAttempt() {
   const reviewItems = [];
   const flaggedArray = Array.from(flaggedQuestions).map((n) => Number(n));
 
+  const mistakeBank = getMistakeBank();
+
   activeQuizInstance.questions.forEach((q, idx) => {
     const userChoice = userAnswers[idx];
     const isCorrect = userChoice && q.answer && userChoice.toLowerCase() === q.answer.toLowerCase();
     const isFlagged = flaggedQuestions.has(idx);
 
-    if (isCorrect) score++;
+    if (isCorrect) {
+      score++;
+      // Option B Graduation Rule: If answered correctly inside the Weak Spots Drill, mark mastered
+      if (activeQuizInstance.isWeakSpots && q.bankKey && mistakeBank[q.bankKey]) {
+        mistakeBank[q.bankKey].is_mastered = true;
+      }
+    } else {
+      // Missed: Record/increment fail counter
+      recordQuestionMistake(q, activeQuizInstance.id);
+    }
+
     reviewItems.push({
       ...q,
       originalIndex: idx,
@@ -999,6 +1187,9 @@ async function submitQuizAttempt() {
       chosenAnswer: userChoice || null,
     });
   });
+
+  saveMistakeBank(mistakeBank);
+  renderWeakSpotsBanner();
 
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
   const scoreDisplay = document.getElementById("result-score-display") || document.getElementById("summary-score-text");
