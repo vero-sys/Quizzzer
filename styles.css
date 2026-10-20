@@ -512,6 +512,54 @@ aside h2 {
   vertical-align: middle;
 }
 
+/* Pinned Weak Spots / Mistake Bank Card */
+.weak-spots-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+  border: 1.5px solid var(--amber);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.weak-spots-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.14);
+}
+
+.weak-spots-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--amber-bg);
+  color: #b45309;
+  border: 1px solid var(--amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.weak-spots-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--amber);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 .quiz-card-actions {
   display: flex;
   align-items: center;
