@@ -935,7 +935,8 @@ select {
 .app-container.quiz-focus-mode aside,
 .app-container.quiz-focus-mode .top-action-bar,
 .app-container.quiz-focus-mode .panel-header-row,
-.app-container.quiz-focus-mode .stats-banner-grid {
+.app-container.quiz-focus-mode .stats-banner-grid,
+.app-container.quiz-focus-mode #weak-spots-deck-container {
   display: none !important;
 }
 
