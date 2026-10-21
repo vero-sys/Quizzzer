@@ -110,7 +110,7 @@
         </div>
       </div>
 
-      <!-- View 1: Take Quiz / Library -->
+	  <!-- View 1: Take Quiz / Library -->
       <section id="view-take" class="view-panel active">
         <div class="panel-header-row">
           <div>
@@ -123,46 +123,71 @@
           </div>
         </div>
 
-        <!-- Metric Stat Cards -->
+       <!-- Metric Stat Cards -->
+        
+		
+		<!-- Compact Mini-Pill Stats Strip (All 6 Metrics) -->
         <div class="stats-banner-grid">
-          <div class="stat-metric-card primary-dark">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Total Quizzes</span>
-              <div class="stat-diagonal-arrow">📚</div>
-            </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-total-decks">0</div>
-              <span class="stat-badge-subtext">Active decks in library</span>
+          <!-- 1. Total Quizzes -->
+          <div class="stat-pill" title="Active decks in library">
+            <div class="stat-pill-icon">📚</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Decks:</span>
+              <span class="stat-pill-value" id="dash-total-decks">0</span>
             </div>
           </div>
 
-          <div class="stat-metric-card">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Completed Attempts</span>
-              <div class="stat-diagonal-arrow">✓</div>
-            </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-total-attempts">0</div>
-              <span class="stat-badge-subtext">Logged study sessions</span>
+          <!-- 2. Completed Attempts -->
+          <div class="stat-pill" title="Logged study sessions">
+            <div class="stat-pill-icon">✓</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Attempts:</span>
+              <span class="stat-pill-value" id="dash-total-attempts">0</span>
             </div>
           </div>
 
-          <div class="stat-metric-card">
-            <div class="stat-card-top">
-              <span class="stat-card-title">Average Accuracy</span>
-              <div class="stat-diagonal-arrow">🎯</div>
+          <!-- 3. Average Accuracy -->
+          <div class="stat-pill pill-primary" title="Overall score average">
+            <div class="stat-pill-icon">🎯</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Accuracy:</span>
+              <span class="stat-pill-value" id="dash-avg-accuracy">0%</span>
             </div>
-            <div class="stat-card-bottom">
-              <div class="stat-big-number" id="dash-avg-accuracy">0%</div>
-              <span class="stat-badge-subtext">Overall score average</span>
+          </div>
+
+          <!-- 4. Top Subject Mastery -->
+          <div class="stat-pill" title="Highest accuracy subject">
+            <div class="stat-pill-icon">📁</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Top Subject:</span>
+              <span class="stat-pill-value" id="stat-best-subject-val">--</span>
+            </div>
+          </div>
+
+          <!-- 5. Flagged Intuition -->
+          <div class="stat-pill" title="Accuracy when flagged">
+            <div class="stat-pill-icon">🚩</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Flagged:</span>
+              <span class="stat-pill-value" id="stat-flagged-rate-val">0%</span>
+            </div>
+          </div>
+
+          <!-- 6. Streak -->
+          <div class="stat-pill pill-amber" title="Consecutive practice days">
+            <div class="stat-pill-icon">🔥</div>
+            <div class="stat-pill-content">
+              <span class="stat-pill-label">Streak:</span>
+              <span class="stat-pill-value" id="stat-streak-val">0 Days</span>
             </div>
           </div>
         </div>
+		
 
         <!-- Vertical Stack Subject Frames & Pinned Drill -->
         <div id="quiz-deck-view">
           <!-- Pinned Weak Spots Drill Card -->
-          <div id="weak-spots-deck-container" style="width: 100%;"></div>
+          <div id="weak-spots-deck-container"></div>
           <div id="available-quiz-list"></div>
         </div>
 
@@ -484,6 +509,13 @@
           <button class="btn btn-secondary" type="button" onclick="exportDataBackup()">📤 Export JSON</button>
           <button class="btn btn-secondary" type="button" onclick="triggerImportFileInput()">📥 Import JSON</button>
         </div>
+		
+		<span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-top: 10px;">Mistake Bank Maintenance</span>
+        <button class="btn btn-secondary" type="button" style="width: 100%; border-color: var(--amber); color: #b45309; background: #fffdf7;" onclick="recalculateMistakeBankFromRecords()">
+          Recount Mistakes
+        </button>
+        </div>
+		
       </div>
     </div>
   </div>
