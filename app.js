@@ -457,12 +457,63 @@ function renderWeakSpotsBanner() {
         </p>
       </div>
       <div class="quiz-card-actions">
+        <button class="btn btn-secondary" type="button" style="padding: 9px 12px;" title="Recalculate from saved records" onclick="recalculateMistakeBankFromRecords()">
+          Recalculate Mistakes
+        </button>
         <button class="btn" type="button" style="background: var(--amber); border-color: var(--amber);" onclick="launchWeakSpotsDrill()">
           Start Practice
         </button>
       </div>
     </div>
   `;
+}
+
+function recalculateMistakeBankFromRecords() {
+  if (!confirm("This will rebuild your Mistake Bank exclusively from your current saved Attempt Records.\n\nContinue?")) {
+    return;
+  }
+
+  const newBank = {};
+  let totalMistakesFound = 0;
+
+  try {
+    const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+
+    records.forEach((rec) => {
+      if (!rec.questions || !Array.isArray(rec.mistakenIndices)) return;
+
+      rec.mistakenIndices.forEach((idx) => {
+        const q = rec.questions[idx];
+        if (!q || !q.question) return;
+
+        const key = `${rec.id || "rec"}_${q.id || idx}_${q.question.trim().slice(0, 30)}`;
+
+        if (!newBank[key]) {
+          newBank[key] = {
+            id: key,
+            deckId: rec.id || "historical",
+            question: q,
+            fail_count: 1,
+            is_mastered: false,
+            historical_mistake: true,
+            last_failed_at: rec.date || new Date().toISOString().split("T")[0]
+          };
+          totalMistakesFound++;
+        } else {
+          newBank[key].fail_count = (newBank[key].fail_count || 1) + 1;
+        }
+      });
+    });
+
+    saveMistakeBank(newBank);
+    renderWeakSpotsBanner();
+    updateDashboardMetrics();
+
+    alert(`✅ Mistake Bank rebuilt successfully!\n• Active Mistakes: ${totalMistakesFound}`);
+  } catch (err) {
+    console.error("Recalculate error:", err);
+    alert("Failed to recalculate: " + err.message);
+  }
 }
 
 function launchWeakSpotsDrill() {
@@ -1654,11 +1705,168 @@ function renderAttemptReviewCards() {
 /* --------------------------------------------------------------------------
    10. RECORDS TABLE, SORTING & ROW DELETION
    -------------------------------------------------------------------------- */
+
+function calculateRecordsStatistics(records) {
+  const safeRecords = Array.isArray(records) ? records : [];
+  const storedDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
+
+  // Map deck titles and IDs to their corresponding subject category
+  const subjectMap = {};
+  storedDecks.forEach((d) => {
+    if (d.title) subjectMap[d.title.trim().toLowerCase()] = d.subject || "General";
+    if (d.id) subjectMap[d.id] = d.subject || "General";
+  });
+
+  /* ---------------------------------------------------------
+     FEATURE 1: Subject-Wise Mastery Breakdown
+     --------------------------------------------------------- */
+  const subjectScores = {}; // { [subject]: { totalScore: 0, totalQuestions: 0 } }
+  let totalSolvedItemsAllTime = 0;
+
+  /* ---------------------------------------------------------
+     FEATURE 4: Flagged Item Hit Rate
+     --------------------------------------------------------- */
+  let totalFlaggedAnswered = 0;
+  let totalFlaggedCorrect = 0;
+
+  safeRecords.forEach((rec) => {
+    // Determine subject for this record
+    const titleKey = (rec.title || "").replace(/\s*\(pen & paper\)/i, "").trim().toLowerCase();
+    const resolvedSubject = subjectMap[titleKey] || "General";
+
+    // Parse score: "18 / 20"
+    let scoreNum = 0;
+    let totalNum = 0;
+    if (rec.score && typeof rec.score === "string") {
+      const match = rec.score.match(/(\d+)\s*\/\s*(\d+)/);
+      if (match) {
+        scoreNum = parseInt(match[1], 10);
+        totalNum = parseInt(match[2], 10);
+      }
+    } else if (rec.questions) {
+      totalNum = rec.questions.length;
+      scoreNum = totalNum - (rec.mistakesCount || 0);
+    }
+
+    if (totalNum > 0) {
+      totalSolvedItemsAllTime += totalNum;
+      if (!subjectScores[resolvedSubject]) {
+        subjectScores[resolvedSubject] = { totalScore: 0, totalQuestions: 0 };
+      }
+      subjectScores[resolvedSubject].totalScore += scoreNum;
+      subjectScores[resolvedSubject].totalQuestions += totalNum;
+    }
+
+    // Flagged Accuracy Logic
+    const flaggedIdxs = rec.flaggedIndices || rec.flagged_indices || [];
+    const mistakeIdxs = new Set(rec.mistakenIndices || rec.mistaken_indices || []);
+
+    flaggedIdxs.forEach((fIdx) => {
+      totalFlaggedAnswered++;
+      if (!mistakeIdxs.has(fIdx)) {
+        totalFlaggedCorrect++;
+      }
+    });
+  });
+
+  // Render Feature 1: Top Subjects UI
+  const bestSubjEl = document.getElementById("stat-best-subject-val");
+  const subjBarsEl = document.getElementById("stat-subject-bars");
+  if (bestSubjEl && subjBarsEl) {
+    const subjectsList = Object.keys(subjectScores).map((s) => {
+      const item = subjectScores[s];
+      const pct = item.totalQuestions > 0 ? Math.round((item.totalScore / item.totalQuestions) * 100) : 0;
+      return { subject: s, percentage: pct, totalQuestions: item.totalQuestions };
+    });
+
+    subjectsList.sort((a, b) => b.percentage - a.percentage);
+
+    if (subjectsList.length === 0) {
+      bestSubjEl.innerText = "--";
+      subjBarsEl.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-muted);">No records available</span>`;
+    } else {
+      bestSubjEl.innerText = `${subjectsList[0].subject} (${subjectsList[0].percentage}%)`;
+      subjBarsEl.innerHTML = subjectsList.slice(0, 3).map((s) => `
+        <div style="font-size: 0.72rem;">
+          <div style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 2px;">
+            <span>${s.subject}</span>
+            <span>${s.percentage}%</span>
+          </div>
+          <div style="width: 100%; height: 5px; background: var(--border-subtle); border-radius: var(--radius-pill); overflow: hidden;">
+            <div style="width: ${s.percentage}%; height: 100%; background: var(--primary); border-radius: var(--radius-pill);"></div>
+          </div>
+        </div>
+      `).join("");
+    }
+  }
+
+  // Render Feature 4: Flagged Hit Rate UI
+  const flagRateEl = document.getElementById("stat-flagged-rate-val");
+  const flagSubtextEl = document.getElementById("stat-flagged-subtext");
+  if (flagRateEl && flagSubtextEl) {
+    if (totalFlaggedAnswered === 0) {
+      flagRateEl.innerText = "0%";
+      flagSubtextEl.innerText = "No flagged questions logged";
+    } else {
+      const flagPct = Math.round((totalFlaggedCorrect / totalFlaggedAnswered) * 100);
+      flagRateEl.innerText = `${flagPct}%`;
+      flagSubtextEl.innerText = `${totalFlaggedCorrect} / ${totalFlaggedAnswered} correct when flagged`;
+    }
+  }
+
+  /* ---------------------------------------------------------
+     FEATURE 5: Practice Consistency & Streak Calculation
+     --------------------------------------------------------- */
+  const uniqueDates = Array.from(new Set(safeRecords.map((r) => r.date).filter(Boolean)))
+    .map((d) => new Date(d))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => b - a); // Newest to oldest
+
+  let streak = 0;
+  if (uniqueDates.length > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const firstDate = new Date(uniqueDates[0]);
+    firstDate.setHours(0, 0, 0, 0);
+
+    const diffDaysFromToday = Math.round((today - firstDate) / (1000 * 60 * 60 * 24));
+
+    // Active if practiced today (0) or yesterday (1)
+    if (diffDaysFromToday === 0 || diffDaysFromToday === 1) {
+      streak = 1;
+      let checkDate = firstDate;
+
+      for (let i = 1; i < uniqueDates.length; i++) {
+        const nextDate = new Date(uniqueDates[i]);
+        nextDate.setHours(0, 0, 0, 0);
+        const dayDifference = Math.round((checkDate - nextDate) / (1000 * 60 * 60 * 24));
+
+        if (dayDifference === 1) {
+          streak++;
+          checkDate = nextDate;
+        } else if (dayDifference > 1) {
+          break;
+        }
+      }
+    }
+  }
+
+  // Render Feature 5: Consistency UI
+  const streakValEl = document.getElementById("stat-streak-val");
+  const solvedSubtextEl = document.getElementById("stat-total-solved-subtext");
+  if (streakValEl && solvedSubtextEl) {
+    streakValEl.innerText = streak === 1 ? `1 Day` : `${streak} Days`;
+    solvedSubtextEl.innerText = `${totalSolvedItemsAllTime.toLocaleString()} items solved across history`;
+  }
+}
+
 async function renderRecordsTable() {
   const tbody = document.getElementById("records-table-body");
   if (!tbody) return;
 
   currentRecordsCache = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+  calculateRecordsStatistics(currentRecordsCache);
   updateRecordFilterCounts(currentRecordsCache);
   updateSortHeaderIcons();
   renderFilteredRecordsRows();
@@ -2241,17 +2449,38 @@ function clearUploadForm() {
 /* --------------------------------------------------------------------------
    13. BACKUP IMPORT & EXPORT (OFFLINE JSON)
    -------------------------------------------------------------------------- */
+
 function exportDataBackup() {
   try {
     const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
     const rawRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+    const rawMistakeBank = JSON.parse(localStorage.getItem("quiz_mistake_bank") || "{}");
+
+    const now = new Date();
+    const formattedDate = now.toISOString().split("T")[0];
+    const formattedTime = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    // Clean, readable metadata block at the top of the file
+    const backupMetadata = {
+      backup_summary: {
+        app_name: "QuizHub",
+        version: "2.1",
+        created_date: formattedDate,
+        created_time: formattedTime,
+        created_timestamp_iso: now.toISOString(),
+        total_quizzes: rawQuizzes.length,
+        total_attempt_records: rawRecords.length,
+        total_tracked_mistakes: Object.keys(rawMistakeBank).length,
+        user_account: currentUser ? currentUser.email || currentUser.id : "Local / Guest"
+      }
+    };
 
     const sanitizedQuizzes = rawQuizzes.map((deck, idx) => ({
       id: String(deck.id || `quiz_${Date.now()}_${idx}`),
       title: String(deck.title || "Untitled Assessment").trim(),
       subject: String(deck.subject || "General").trim(),
       sortOrder: Number.isInteger(deck.sortOrder) ? deck.sortOrder : idx,
-      uploadedAt: deck.uploadedAt || new Date().toISOString().split("T")[0],
+      uploadedAt: deck.uploadedAt || formattedDate,
       totalQuestions: Number(deck.totalQuestions) || (deck.questions ? deck.questions.length : 0),
       questions: Array.isArray(deck.questions) ? deck.questions.map((q, qIdx) => ({
         id: Number(q.id) || (qIdx + 1),
@@ -2272,7 +2501,7 @@ function exportDataBackup() {
       return {
         id: String(rec.id || `rec_${Date.now()}_${idx}`),
         title: String(rec.title || "Untitled Attempt").trim(),
-        date: rec.date || new Date().toISOString().split("T")[0],
+        date: rec.date || formattedDate,
         score: String(rec.score || "0 / 0"),
         percentage: String(rec.percentage || "0%"),
         mode: rec.mode === "paper" ? "paper" : "device",
@@ -2284,23 +2513,19 @@ function exportDataBackup() {
       };
     });
 
+    // Assemble the complete payload with metadata at the very top
     const backupEnvelope = {
-      meta: {
-        app: "QuizHub",
-        schemaVersion: "2.0",
-        exportedAt: new Date().toISOString(),
-        authorUserId: currentUser ? currentUser.id : null,
-        counts: { decks: sanitizedQuizzes.length, records: sanitizedRecords.length },
-      },
+      ...backupMetadata,
       quizzes: sanitizedQuizzes,
       quiz_records: sanitizedRecords,
+      quiz_mistake_bank: rawMistakeBank,
     };
 
     const blob = new Blob([JSON.stringify(backupEnvelope, null, 2)], { type: "application/json" });
     const downloadUrl = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement("a");
     downloadAnchor.href = downloadUrl;
-    downloadAnchor.download = `QuizHub_Backup_${new Date().toISOString().split("T")[0]}.json`;
+    downloadAnchor.download = `QuizHub_Backup_${formattedDate}.json`;
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
 
@@ -2338,17 +2563,23 @@ function handleBackupFileSelect(event) {
 
       const rawQuizzes = Array.isArray(importedData.quizzes) ? importedData.quizzes : (Array.isArray(importedData) ? importedData : []);
       const rawRecords = Array.isArray(importedData.quiz_records) ? importedData.quiz_records : (Array.isArray(importedData.records) ? importedData.records : []);
+      const rawMistakes = (typeof importedData.quiz_mistake_bank === "object" && importedData.quiz_mistake_bank !== null)
+        ? importedData.quiz_mistake_bank
+        : {};
 
-      if (rawQuizzes.length === 0 && rawRecords.length === 0) {
-        alert("Import aborted: No valid quiz decks or records found in this backup file.");
+      if (rawQuizzes.length === 0 && rawRecords.length === 0 && Object.keys(rawMistakes).length === 0) {
+        alert("Import aborted: No valid quiz data found in this backup file.");
         return;
       }
 
       const shouldOverwrite = confirm(
-        `📦 Backup Found:\n• Decks: ${rawQuizzes.length}\n• Attempt Records: ${rawRecords.length}\n\n` +
-        `Do you want to REPLACE your current data?\n\n` +
-        `• Click [OK] to Overwrite / Replace current data.\n` +
-        `• Click [Cancel] to MERGE with your existing library.`
+        `📦 Backup Found:\n` +
+        `• Decks: ${rawQuizzes.length}\n` +
+        `• Attempt Records: ${rawRecords.length}\n` +
+        `• Tracked Mistakes: ${Object.keys(rawMistakes).length}\n\n` +
+        `Do you want to REPLACE your current local data?\n\n` +
+        `• Click [OK] to Overwrite current data.\n` +
+        `• Click [Cancel] to MERGE with existing data.`
       );
 
       const cleanQuizzes = rawQuizzes.map((d, i) => ({
@@ -2363,7 +2594,7 @@ function handleBackupFileSelect(event) {
 
       const cleanRecords = rawRecords.map((r, i) => {
         const rawFlags = r.flaggedIndices || r.flagged_indices || [];
-        const rawMistakes = r.mistakenIndices || r.mistaken_indices || [];
+        const rawItemMistakes = r.mistakenIndices || r.mistaken_indices || [];
         return {
           id: String(r.id || `rec_${Date.now()}_${i}`),
           title: String(r.title || "Untitled Attempt").trim(),
@@ -2371,8 +2602,8 @@ function handleBackupFileSelect(event) {
           score: String(r.score || "0 / 0"),
           percentage: String(r.percentage || "0%"),
           mode: r.mode === "paper" ? "paper" : "device",
-          mistakesCount: r.mistakesCount ?? r.mistakes_count ?? rawMistakes.length,
-          mistakenIndices: Array.from(new Set(rawMistakes.map((n) => Number(n)))),
+          mistakesCount: r.mistakesCount ?? r.mistakes_count ?? rawItemMistakes.length,
+          mistakenIndices: Array.from(new Set(rawItemMistakes.map((n) => Number(n)))),
           flaggedIndices: Array.from(new Set(rawFlags.map((n) => Number(n)))),
           questions: Array.isArray(r.questions) ? r.questions : [],
           userAnswers: r.userAnswers || r.user_answers || {},
@@ -2382,9 +2613,11 @@ function handleBackupFileSelect(event) {
       if (shouldOverwrite) {
         localStorage.setItem("quizzes", JSON.stringify(cleanQuizzes));
         localStorage.setItem("quiz_records", JSON.stringify(cleanRecords));
+        localStorage.setItem("quiz_mistake_bank", JSON.stringify(rawMistakes));
       } else {
         const existingDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
         const existingRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+        const existingMistakes = JSON.parse(localStorage.getItem("quiz_mistake_bank") || "{}");
 
         const mergedDecksMap = new Map();
         existingDecks.forEach((d) => mergedDecksMap.set(d.id, d));
@@ -2394,13 +2627,17 @@ function handleBackupFileSelect(event) {
         existingRecords.forEach((r) => mergedRecordsMap.set(r.id, r));
         cleanRecords.forEach((r) => mergedRecordsMap.set(r.id, r));
 
+        const mergedMistakes = { ...existingMistakes, ...rawMistakes };
+
         localStorage.setItem("quizzes", JSON.stringify(Array.from(mergedDecksMap.values())));
         localStorage.setItem("quiz_records", JSON.stringify(Array.from(mergedRecordsMap.values())));
+        localStorage.setItem("quiz_mistake_bank", JSON.stringify(mergedMistakes));
       }
 
       await renderQuizList();
       await renderRecordsTable();
       populateEditQuizDropdown();
+      renderWeakSpotsBanner();
       updateDashboardMetrics();
 
       if (currentUser && confirm("Restore complete! Would you like to sync the restored items to your Supabase cloud account now?")) {
@@ -2417,7 +2654,7 @@ function handleBackupFileSelect(event) {
   };
   reader.readAsText(file);
 }
-
+	
 /* --------------------------------------------------------------------------
    14. MANUAL CLOUD SYNCHRONIZATION (SUPABASE)
    -------------------------------------------------------------------------- */
