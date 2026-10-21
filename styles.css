@@ -294,97 +294,115 @@ aside h2 {
 }
 
 /* ==========================================================================
-   5. METRIC STAT CARDS
+   5. COMPACT METRIC STAT PILLS (BALANCED EVEN-ROW GRID)
    ========================================================================== */
 
 .stats-banner-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 30px;
+  /* Fixed 3 even columns on desktop (renders a clean 3x2 for 6 pills) */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 22px;
+  box-sizing: border-box;
 }
 
-.stat-metric-card {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  padding: 22px;
+/* Individual Compact Pill */
+.stat-pill {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 135px;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.stat-metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
-}
-
-.stat-metric-card.primary-dark {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-.stat-card-top {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px 8px 10px;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.stat-card-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
+.stat-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary-light);
+  box-shadow: 0 3px 10px rgba(30, 58, 138, 0.08);
 }
 
-.stat-metric-card.primary-dark .stat-card-title {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.stat-diagonal-arrow {
-  width: 28px;
-  height: 28px;
+/* Rounded Leading Icon Circle */
+.stat-pill-icon {
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
+  background: var(--surface-alt);
   border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
-.stat-metric-card.primary-dark .stat-diagonal-arrow {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
+/* Label & Value Wrapper */
+.stat-pill-content {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
-.stat-card-bottom {
-  margin-top: 14px;
-}
-
-.stat-big-number {
-  font-size: 2.2rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-  color: var(--text-header);
-}
-
-.stat-metric-card.primary-dark .stat-big-number {
-  color: #fff;
-}
-
-.stat-badge-subtext {
-  font-size: 0.75rem;
+.stat-pill-label {
+  font-size: 0.74rem;
   font-weight: 700;
-  color: var(--accent-green);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
+
+.stat-pill-value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-header);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Optional Accent Highlights */
+.stat-pill.pill-primary {
+  background: var(--accent-mint);
+  border-color: #bfdbfe;
+}
+
+.stat-pill.pill-primary .stat-pill-icon {
+  background: #ffffff;
+  border-color: #bfdbfe;
+}
+
+.stat-pill.pill-primary .stat-pill-value {
+  color: var(--primary);
+}
+
+.stat-pill.pill-amber {
+  background: var(--amber-bg);
+  border-color: #fde68a;
+}
+
+.stat-pill.pill-amber .stat-pill-icon {
+  background: #ffffff;
+  border-color: #fde68a;
+}
+
+.stat-pill.pill-amber .stat-pill-value {
+  color: #b45309;
+}
+
+/* If the total number of items is odd, span the last one across full width */
+.stats-banner-grid > .stat-pill:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 
 /* ==========================================================================
    6. SUBJECT FRAMES & QUIZ DECK CARDS (DESKTOP)
@@ -512,8 +530,7 @@ aside h2 {
   vertical-align: middle;
 }
 
-/* Pinned Weak Spots / Mistake Bank Card */
-
+/* Pinned Weak Spots / Mistake Bank Card (Desktop Default) */
 #weak-spots-deck-container {
   width: 100%;
   display: block;
@@ -534,19 +551,25 @@ aside h2 {
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.weak-spots-card .quiz-card-info {
-  flex: 1;
-  min-width: 0;
-}
-
 .weak-spots-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.14);
 }
 
+.weak-spots-card .quiz-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.weak-spots-card .quiz-card-info strong {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-header);
+}
+
 .weak-spots-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   background: var(--amber-bg);
   color: #b45309;
@@ -554,7 +577,7 @@ aside h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   flex-shrink: 0;
 }
 
@@ -650,7 +673,7 @@ aside h2 {
 
 /* ==========================================================================
    7. BUTTONS, FORMS & DROPZONE
-   ========================================================================== */
+   ========================================================================= */
 
 .btn {
   padding: 9px 18px;
@@ -805,7 +828,7 @@ select {
 /* ==========================================================================
    9. QUIZ RUNNER & IMMERSIVE FOCUS MODE
    ========================================================================== */
-/* Segmented Progress Track */
+
 .quiz-progress-track {
   width: 100%;
   height: 8px;
@@ -816,7 +839,6 @@ select {
   position: relative;
 }
 
-/* Individual Segment */
 .quiz-progress-step {
   flex: 1;
   height: 100%;
@@ -831,20 +853,17 @@ select {
   transform: translateY(-1px);
 }
 
-/* Answered: Flowing Blue-Teal Gradient */
 .quiz-progress-step.is-answered {
   background: linear-gradient(90deg, #2563eb, #06b6d4, #14b8a6, #2563eb);
   background-size: 300% 100%;
   animation: flowingGradientShift 4s linear infinite;
 }
 
-/* Skipped: Crisp Warning Red */
 .quiz-progress-step.is-skipped {
   background: var(--red) !important;
   box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
 }
 
-/* Current Active Position Indicator */
 .quiz-progress-step.is-current {
   outline: 2px solid var(--primary-light);
   outline-offset: 1px;
@@ -937,7 +956,6 @@ select {
   background: var(--surface) !important;
 }
 
-/* Flag question toggled state */
 #btn-flag-q.is-flagged {
   background: var(--amber-bg) !important;
   border-color: var(--amber) !important;
@@ -1119,7 +1137,6 @@ select {
   font-weight: 800;
 }
 
-/* 2x2 Grid on Desktop */
 .options-input-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1127,7 +1144,6 @@ select {
   margin: 14px 0;
 }
 
-/* Pill Input with Letter Badge */
 .input-with-label {
   display: flex;
   align-items: center;
@@ -1282,7 +1298,6 @@ td:last-child {
   box-shadow: 0 0 0 2px var(--primary) inset !important;
 }
 
-/* Pen & Paper Grid & Mistake Toggle Chips */
 #paper-items-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1320,7 +1335,6 @@ td:last-child {
   transform: translateY(-1px);
 }
 
-/* Checkbox Indicator Circle */
 .mistake-box {
   width: 20px;
   height: 20px;
@@ -1337,7 +1351,6 @@ td:last-child {
   flex-shrink: 0;
 }
 
-/* Active Wrong / Mistake Selected State */
 .mistake-check-item.is-wrong {
   background: #fef2f2 !important;
   border-color: #f87171 !important;
@@ -1357,7 +1370,6 @@ td:last-child {
 .mode-card-btn.selected svg {
   stroke: var(--primary);
 }
-
 
 /* ==========================================================================
    AI PROMPT HELPER BANNER (MODERN FLUENT CARD)
@@ -1472,7 +1484,6 @@ td:last-child {
     margin: 0 !important;
   }
 
-  /* Single-row header (Hamburger + Search Pill) */
   .top-action-bar {
     display: flex !important;
     flex-direction: row !important;
@@ -1499,7 +1510,6 @@ td:last-child {
     min-width: 0 !important;
   }
 
-  /* Mobile Slide-Out Drawer Sidebar */
   aside {
     position: fixed !important;
     top: 0 !important;
@@ -1535,6 +1545,40 @@ td:last-child {
     overflow-x: hidden !important;
   }
 
+  /* Mobile: Clean 2-column grid for pills */
+  
+  /* Mobile: Clean 2x3 grid */
+  .stats-banner-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    overflow-x: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .stat-pill {
+    padding: 7px 10px !important;
+    gap: 8px !important;
+  }
+
+  .stat-pill-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .stat-pill-label {
+    font-size: 0.7rem !important;
+  }
+
+  .stat-pill-value {
+    font-size: 0.85rem !important;
+  }
+
+  /* If there is ever an odd 7th or 5th item, expand it across full row width */
+  .stats-banner-grid > .stat-pill:last-child:nth-child(odd) {
+    grid-column: 1 / -1 !important;
+  }
+  
   .view-panel {
     padding: 16px !important;
   }
@@ -1545,46 +1589,6 @@ td:last-child {
     gap: 12px !important;
   }
 
-  /* 3 Compact Metric Squares */
-  .stats-banner-grid {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    width: 100% !important;
-    gap: 8px !important;
-    margin-bottom: 20px !important;
-    box-sizing: border-box !important;
-  }
-
-  .stat-metric-card {
-    min-height: auto !important;
-    padding: 8px 4px !important;
-    border-radius: 14px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    text-align: center !important;
-    overflow: hidden !important;
-  }
-
-  .stat-card-title {
-    font-size: 0.65rem !important;
-    line-height: 1.15 !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-  }
-
-  .stat-diagonal-arrow,
-  .stat-badge-subtext {
-    display: none !important;
-  }
-
-  .stat-big-number {
-    font-size: 1.4rem !important;
-    line-height: 1 !important;
-  }
-
-  /* Subject Frame Header Single-Line */
   .subject-frame-header {
     flex-wrap: nowrap !important;
     gap: 8px !important;
@@ -1681,12 +1685,49 @@ td:last-child {
     flex-shrink: 0 !important;
   }
 
-  /* Single-column fallback for Creator cards on small screens */
+  /* Mobile Weak Spots Mistake Bank Card */
+  .weak-spots-card {
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+    align-items: start !important;
+    padding: 18px 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .weak-spots-card .weak-spots-icon {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .weak-spots-card .quiz-card-info {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .weak-spots-card .quiz-card-actions {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .weak-spots-card .quiz-card-actions .btn {
+    flex: 1 !important;
+    padding: 10px !important;
+    font-size: 0.9rem !important;
+  }
+
   .options-input-grid {
     grid-template-columns: 1fr !important;
   }
 
-  /* Table horizontal responsiveness */
   .table-responsive table {
     min-width: 520px;
   }
@@ -1702,7 +1743,6 @@ td:last-child {
     font-size: 0.8rem !important;
   }
 
-  /* Focus Mode padding on mobile */
   .app-container.quiz-focus-mode main {
     padding: 16px 12px !important;
   }
