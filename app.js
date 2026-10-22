@@ -641,6 +641,7 @@ async function renderQuizList() {
             <div class="card-menu-dropdown" id="card-menu-${quiz.id}">
               <button class="btn-menu-rename" type="button" onclick="openRenameModal('${quiz.id}', '${encodeURIComponent(quiz.title)}')">✏️ Rename</button>
               <button class="btn-menu-rename" type="button" onclick="openCategorizeModal('${quiz.id}')">📁 Change Subject</button>
+			  <button type="button" onclick="exportQuizDeckToPDF('${quiz.id}')">📄 Export as PDF</button>
               <button class="btn-menu-delete" type="button" onclick="deleteQuiz('${quiz.id}')">🗑️ Delete</button>
             </div>
           </div>
@@ -2653,6 +2654,101 @@ function handleBackupFileSelect(event) {
     }
   };
   reader.readAsText(file);
+}
+
+function exportQuizDeckToPDF(quizId) {
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const quiz = stored.find((q) => q.id === quizId);
+
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    alert("Unable to export: Quiz deck contains no questions.");
+    return;
+  }
+
+  const stage = document.getElementById("quiz-pdf-export-stage");
+  if (!stage) return;
+
+  // Build Questions HTML
+  const questionsHtml = quiz.questions.map((q, idx) => {
+    const qNum = idx + 1;
+    const optionsHtml = (q.options || []).map((opt) => `
+      <div class="pdf-q-opt">
+        <span class="pdf-opt-letter">${(opt.letter || "").toUpperCase()}.</span>
+        <span>${escapeHtml(opt.text || "")}</span>
+      </div>
+    `).join("");
+
+    return `
+      <div class="pdf-q-item">
+        <div class="pdf-q-prompt">${qNum}. ${escapeHtml(q.question || "")}</div>
+        <div class="pdf-q-options">${optionsHtml}</div>
+      </div>
+    `;
+  }).join("");
+
+  // Build Answer Key & Rationales HTML
+  const answersHtml = quiz.questions.map((q, idx) => {
+    const qNum = idx + 1;
+    const answerKey = (q.answer || "N/A").toUpperCase();
+    const rationale = q.explanation || q.rationale || "No rationale provided.";
+
+    return `
+      <div class="pdf-ans-item">
+        <span class="pdf-ans-key">${qNum}. ${answerKey}</span>
+        <div class="pdf-ans-rationale">${escapeHtml(rationale)}</div>
+      </div>
+    `;
+  }).join("");
+
+  // Construct complete print stage markup
+  stage.innerHTML = `
+    <div class="pdf-header">
+      <div>
+        <h1>${escapeHtml(quiz.title || "Quiz Assessment")}</h1>
+        <div style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-top: 2px;">
+          Subject: ${escapeHtml(quiz.subject || "General")}
+        </div>
+      </div>
+      <div class="pdf-meta">
+        <div><strong>Total Items:</strong> ${quiz.questions.length}</div>
+        <div>Date: ${new Date().toISOString().split("T")[0]}</div>
+      </div>
+    </div>
+
+    <!-- 2-Column Questions -->
+    <div class="pdf-questions-grid">
+      ${questionsHtml}
+    </div>
+
+    <!-- Answer Key & Explanations on New Page -->
+    <div class="pdf-answers-section">
+      <div class="pdf-answers-header">Answer Key & Rationales</div>
+      <div class="pdf-answers-grid">
+        ${answersHtml}
+      </div>
+    </div>
+  `;
+
+  // Helper utility for string escaping
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // Trigger system print dialogue configured to save as PDF
+  const originalTitle = document.title;
+  document.title = `${quiz.title.replace(/[\\/:*?"<>|]/g, "_")}_Assessment`;
+  
+  window.print();
+  
+  // Cleanup after print dialogue closes
+  setTimeout(() => {
+    document.title = originalTitle;
+    stage.innerHTML = "";
+  }, 1000);
 }
 	
 /* --------------------------------------------------------------------------
