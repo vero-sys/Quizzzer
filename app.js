@@ -178,7 +178,7 @@ function copyAIPromptTemplate(btnElement) {
 
 Rules:
 - Return response via text block
-- Exactly 4 options per question (a, b, c, d).
+- Exactly 4 options per question (a, b, c, d). 
 - Do not escape dots with backslashes (use "1." not "1\\.").
 - Provide a clear rationale for each answer.
 
