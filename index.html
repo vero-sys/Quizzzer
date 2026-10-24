@@ -260,70 +260,76 @@
 
       <!-- View 2: Upload & AI Prompt Generator -->
       <section id="view-upload" class="view-panel">
-        <div class="panel-header-row">
-          <div>
-            <h3>Import / Paste Quiz</h3>
-            <p class="subtitle">Quickly generate quizzes with AI or upload an existing document.</p>
-          </div>
-          <div class="summary-filter-pills" style="margin-bottom: 0;">
-            <button type="button" class="summary-pill active" onclick="switchView('upload')">1. Import / Paste</button>
-            <button type="button" class="summary-pill" onclick="switchView('create')">2. Manual Builder</button>
-            <button type="button" class="summary-pill" onclick="switchView('edit')">3. Edit Existing</button>
-          </div>
-        </div>
+	  <div class="panel-header-row">
+		<div>
+		  <h3>Import / Paste Quiz</h3>
+		  <p class="subtitle">Quickly generate quizzes with AI or upload an existing document.</p>
+		</div>
+	  </div>
 
-        <!-- Sleek AI Prompt Helper Card -->
-        <div class="ai-prompt-banner">
-          <div class="ai-prompt-header">
-            <div class="ai-badge">
-              <span>✨</span>
-              <strong>AI Prompt Template</strong>
-            </div>
-            <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span>Copy AI Prompt</span>
-            </button>
-          </div>
-          <p class="ai-prompt-desc" style="margin-bottom: 0;">
-            Copy this prompt into ChatGPT, Claude, or Gemini along with your study notes, then paste the AI's reply below.
-          </p>
-        </div>
+	  <!-- Sleek AI Prompt Helper Card -->
+	  <div class="ai-prompt-banner">
+		<div class="ai-prompt-header">
+		  <div class="ai-badge">
+			<span>✨</span>
+			<strong>AI Prompt Template</strong>
+		  </div>
+		  <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
+			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+			  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+			  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+			</svg>
+			<span>Copy AI Prompt</span>
+		  </button>
+		</div>
+		<p class="ai-prompt-desc" style="margin-bottom: 0;">
+		  Copy this prompt into ChatGPT, Claude, or Gemini along with your study notes, then paste the AI's reply below.
+		</p>
+	  </div>
 
-        <!-- Upload & Input Form Frame -->
-        <div class="subject-frame">
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="quiz-title-input">Quiz Title</label>
-              <input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="quiz-subject-input">Subject / Folder</label>
-              <input type="text" id="quiz-subject-input" placeholder="e.g., Clinical Psychology" />
-            </div>
-          </div>
+	  <!-- Upload & Input Form Frame -->
+	  <div class="subject-frame">
+		<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
+		  <div class="form-group" style="margin-bottom: 0;">
+			<label for="quiz-title-input">Quiz Title</label>
+			<input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
+		  </div>
 
-          <div class="form-group">
-            <label for="raw-paste">Paste Formatted Questions Here</label>
-            <textarea id="raw-paste" rows="8" placeholder="1. Question text...&#10;a. Option A&#10;b. Option B&#10;c. Option C&#10;d. Option D&#10;&#10;Answer Key:&#10;1. a - Explanation..."></textarea>
-          </div>
+		  <!-- Subject / Folder Input with Native Datalist Combobox -->
+		  <div class="form-group" style="margin-bottom: 0;">
+			<label for="quiz-subject-input">Subject / Folder</label>
+			<input 
+			  type="text" 
+			  id="quiz-subject-input" 
+			  list="available-subjects-list" 
+			  placeholder="Select or type new..." 
+			  autocomplete="off" 
+			/>
+			<datalist id="available-subjects-list">
+			  <!-- Dynamically populated from stored library decks -->
+			</datalist>
+		  </div>
+		</div>
 
-          <!-- Compact File Dropzone -->
-          <div class="dropzone" style="padding: 20px; margin-bottom: 20px;" onclick="document.getElementById('file-input').click()">
-            <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
-            <p style="font-weight: 700; font-size: 0.92rem; color: var(--text-header);">📄 Or click to upload a .DOCX, .TXT, or .JSON file</p>
-          </div>
+		<div class="form-group">
+		  <label for="raw-paste">Paste Formatted Questions Here</label>
+		  <textarea id="raw-paste" rows="8" placeholder="1. Question text...&#10;a. Option A&#10;b. Option B&#10;c. Option C&#10;d. Option D&#10;&#10;Answer Key:&#10;1. a - Explanation..."></textarea>
+		</div>
 
-          <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="processAndLoadQuiz()">Save &amp; Start Quiz</button>
-            <button class="btn btn-secondary" onclick="clearUploadForm()">Clear Form</button>
-          </div>
+		<!-- Compact File Dropzone -->
+		<div class="dropzone" style="padding: 20px; margin-bottom: 20px;" onclick="document.getElementById('file-input').click()">
+		  <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
+		  <p style="font-weight: 700; font-size: 0.92rem; color: var(--text-header);">📄 Or click to upload a .DOCX, .TXT, or .JSON file</p>
+		</div>
 
-          <div id="upload-status" class="status-box"></div>
-        </div>
-      </section>
+		<div style="display: flex; gap: 10px;">
+		  <button class="btn" onclick="processAndLoadQuiz()">Save &amp; Start Quiz</button>
+		  <button class="btn btn-secondary" onclick="clearUploadForm()">Clear Form</button>
+		</div>
+
+		<div id="upload-status" class="status-box"></div>
+	  </div>
+	</section>
 
       <!-- View 3: Records History -->
       <section id="view-records" class="view-panel">
@@ -377,11 +383,6 @@
           <div>
             <h3>Manual Quiz Builder</h3>
             <p class="subtitle">Build a new deck question-by-question.</p>
-          </div>
-          <div class="summary-filter-pills" style="margin-bottom: 0;">
-            <button type="button" class="summary-pill" onclick="switchView('upload')">1. Import / Paste</button>
-            <button type="button" class="summary-pill active" onclick="switchView('create')">2. Manual Builder</button>
-            <button type="button" class="summary-pill" onclick="switchView('edit')">3. Edit Existing</button>
           </div>
         </div>
 
@@ -446,11 +447,6 @@
             <h3>Edit Existing Deck</h3>
             <p class="subtitle">Select a deck from your library to modify its questions or answer keys.</p>
           </div>
-          <div class="summary-filter-pills" style="margin-bottom: 0;">
-            <button type="button" class="summary-pill" onclick="switchView('upload')">1. Import / Paste</button>
-            <button type="button" class="summary-pill" onclick="switchView('create')">2. Manual Builder</button>
-            <button type="button" class="summary-pill active" onclick="switchView('edit')">3. Edit Existing</button>
-          </div>
         </div>
 
         <div class="subject-frame">
@@ -500,8 +496,8 @@
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Supabase Cloud</span>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-          <button class="btn" type="button" onclick="pushLocalDataToSupabase()">☁️ Push to Cloud</button>
-          <button class="btn btn-secondary" type="button" onclick="pullCloudDataToLocalStorage()">⬇️ Pull from Cloud</button>
+          <button class="btn" type="button" onclick="pushLocalDataToSupabase()">☁️ Save and Upload</button>
+          <button class="btn btn-secondary" type="button" onclick="pullCloudDataToLocalStorage()">⬇️ Download</button>
         </div>
 
         <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Offline File Backup (.JSON)</span>
@@ -514,29 +510,144 @@
         <button class="btn btn-secondary" type="button" style="width: 100%; border-color: var(--amber); color: #b45309; background: #fffdf7;" onclick="recalculateMistakeBankFromRecords()">
           Recount Mistakes
         </button>
-        </div>
-		
       </div>
     </div>
   </div>
 
-  <!-- Modal: Rename & Edit Subject -->
+  <!-- Modal: Rename & Edit Deck Details -->
   <div id="rename-modal" class="modal-overlay">
     <div class="modal-content">
       <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Edit Deck Details</h4>
-      <p class="subtitle" style="margin-bottom: 20px;">Update display title or subject category.</p>
+      <p class="subtitle" style="margin-bottom: 20px;">Update display title, subject category, or accent color.</p>
       <input type="hidden" id="rename-quiz-id" />
+      
       <div class="form-group">
         <label for="rename-quiz-input">Quiz Title</label>
         <input type="text" id="rename-quiz-input" />
       </div>
+      
       <div class="form-group">
         <label for="rename-quiz-subject">Subject / Category</label>
         <input type="text" id="rename-quiz-subject" />
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+
+      <!-- Deck Accent Color Picker -->
+      <div class="form-group">
+        <label>Deck Color Accent</label>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+          <!-- Preset quick-pick color swatches -->
+          <div class="color-swatch-list" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="swatch-btn" style="--c: #2563eb;" onclick="setRenameColor('#2563eb')"></button>
+            <button type="button" class="swatch-btn" style="--c: #0891b2;" onclick="setRenameColor('#0891b2')"></button>
+            <button type="button" class="swatch-btn" style="--c: #059669;" onclick="setRenameColor('#059669')"></button>
+            <button type="button" class="swatch-btn" style="--c: #d97706;" onclick="setRenameColor('#d97706')"></button>
+            <button type="button" class="swatch-btn" style="--c: #dc2626;" onclick="setRenameColor('#dc2626')"></button>
+            <button type="button" class="swatch-btn" style="--c: #7c3aed;" onclick="setRenameColor('#7c3aed')"></button>
+            <button type="button" class="swatch-btn" style="--c: #db2777;" onclick="setRenameColor('#db2777')"></button>
+          </div>
+
+          <!-- Custom Color Picker -->
+          <label style="margin: 0; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-transform: none; font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">
+            <input type="color" id="rename-quiz-color" value="#2563eb" style="width: 32px; height: 32px; padding: 0; border: none; border-radius: 8px; cursor: pointer; background: transparent;" />
+            Custom
+          </label>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
         <button class="btn btn-secondary" onclick="closeRenameModal()">Cancel</button>
         <button class="btn" onclick="saveQuizRename()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Quick Color Accent Picker -->
+  <div id="deck-color-modal" class="modal-overlay" onclick="if(event.target === this) closeDeckColorModal()">
+    <div class="modal-content" style="max-width: 400px;">
+      <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Deck Color Accent</h4>
+      <p class="subtitle" style="margin-bottom: 20px;">Choose a color theme for this deck.</p>
+      <input type="hidden" id="color-modal-quiz-id" />
+
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>Palette Presets</label>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #2563eb;" onclick="selectDeckColorModal('#2563eb')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #0891b2;" onclick="selectDeckColorModal('#0891b2')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #059669;" onclick="selectDeckColorModal('#059669')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #d97706;" onclick="selectDeckColorModal('#d97706')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #dc2626;" onclick="selectDeckColorModal('#dc2626')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #7c3aed;" onclick="selectDeckColorModal('#7c3aed')"></button>
+          <button type="button" class="swatch-btn deck-modal-swatch" style="--c: #db2777;" onclick="selectDeckColorModal('#db2777')"></button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label for="deck-modal-custom-color">Custom Hex</label>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+          <input type="color" id="deck-modal-custom-color" value="#2563eb" style="width: 44px; height: 38px; padding: 2px; border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; background: transparent;" oninput="syncDeckModalCustomColor(this.value)" />
+          <input type="text" id="deck-modal-hex-input" value="#2563eb" placeholder="#2563eb" maxlength="7" style="flex: 1; padding: 8px 12px; font-weight: 700; font-family: monospace;" oninput="syncDeckModalHexInput(this.value)" />
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary" type="button" onclick="closeDeckColorModal()">Cancel</button>
+        <button class="btn" type="button" onclick="saveDeckColorModal()">Apply Color</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Subject Folder Color Theme Picker -->
+  <div id="subject-color-modal" class="modal-overlay" onclick="if(event.target === this) closeSubjectColorModal()">
+    <div class="modal-content" style="max-width: 420px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <h4 style="font-size: 1.25rem; font-weight: 800;">Subject Theme Color</h4>
+        <button type="button" class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeSubjectColorModal()">✕</button>
+      </div>
+      <p class="subtitle" style="margin-bottom: 20px;">
+        Colors will apply to all decks and start buttons inside <strong id="subj-modal-name-display" style="color: var(--text-header);">Subject</strong>.
+      </p>
+
+      <input type="hidden" id="subj-modal-subject-key" />
+
+      <!-- Palette Swatches -->
+      <div class="form-group" style="margin-bottom: 20px;">
+        <label>Preset Palette</label>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #2563eb;" onclick="selectSubjectColor('#2563eb')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #0891b2;" onclick="selectSubjectColor('#0891b2')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #059669;" onclick="selectSubjectColor('#059669')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #d97706;" onclick="selectSubjectColor('#d97706')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #dc2626;" onclick="selectSubjectColor('#dc2626')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #7c3aed;" onclick="selectSubjectColor('#7c3aed')"></button>
+          <button type="button" class="swatch-btn subj-swatch" style="--c: #db2777;" onclick="selectSubjectColor('#db2777')"></button>
+        </div>
+      </div>
+
+      <!-- Custom Hex -->
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label for="subj-modal-custom-picker">Custom Color</label>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+          <input 
+            type="color" 
+            id="subj-modal-custom-picker" 
+            value="#2563eb" 
+            style="width: 44px; height: 38px; padding: 2px; border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; background: transparent;" 
+            oninput="syncSubjCustomColor(this.value)" 
+          />
+          <input 
+            type="text" 
+            id="subj-modal-hex-input" 
+            value="#2563eb" 
+            maxlength="7" 
+            style="flex: 1; padding: 9px 12px; font-weight: 700; font-family: monospace;" 
+            oninput="syncSubjHexInput(this.value)" 
+          />
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary" type="button" onclick="closeSubjectColorModal()">Cancel</button>
+        <button class="btn" type="button" onclick="saveSubjectColor()">Save Subject Theme</button>
       </div>
     </div>
   </div>
