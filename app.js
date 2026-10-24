@@ -174,15 +174,20 @@ function showStatus(elementId, message, statusType) {
 }
 
 function copyAIPromptTemplate(btnElement) {
+  if (btnElement && btnElement.classList.contains("copied")) return;
+
   const promptText = `Please generate a multiple-choice quiz about [TOPIC/DOCUMENT].
 
 Rules:
-- Return response via text block
-- Exactly 4 options per question (a, b, c, d). 
+- Put the entire output inside a single plain text block (\`\`\`text ... \`\`\`) to preserve exact formatting and spacing.
+- Do NOT use markdown styling (no bold, no italics, no asterisks like **word** or *word*).
+- No introductory or concluding remarks (output only the code block).
+- Exactly 4 options per question (a, b, c, d).
 - Do not escape dots with backslashes (use "1." not "1\\.").
-- Provide a clear rationale for each answer.
+- Provide a clear rationale for each answer in the key.
+- Randomize correct options so consecutive items rarely share the same answer letter.
 
-Strictly format the output as follows:
+Strictly format the text block content as follows:
 
 1. [Question text here]
 a. [Option A]
@@ -191,18 +196,18 @@ c. [Option C]
 d. [Option D]
 
 Answer Key:
-1. a - [Explanation / rationale here]
+1. a - [Explanation / rationale here]`;
 
-Randomize the letter answers, do not make the choices have the same letter in consecutive order`;
+  const originalHtml = btnElement ? btnElement.innerHTML : "";
 
   navigator.clipboard.writeText(promptText).then(() => {
-    const originalHtml = btnElement.innerHTML;
+    if (!btnElement) return;
     btnElement.classList.add("copied");
     btnElement.innerHTML = `<span>✓</span> <span>Copied to Clipboard!</span>`;
     setTimeout(() => {
       btnElement.classList.remove("copied");
       btnElement.innerHTML = originalHtml;
-    }, 2200);
+    }, 2000);
   }).catch((err) => {
     console.error("Clipboard copy failed:", err);
   });
