@@ -2867,8 +2867,13 @@ async function pushLocalDataToSupabase() {
   try {
     const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
     const rawRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
+    const rawSubjectColors = JSON.parse(localStorage.getItem("quiz_subject_colors") || "{}");
 
-    if (rawQuizzes.length === 0 && rawRecords.length === 0) {
+    const hasDecks = rawQuizzes.length > 0;
+    const hasRecords = rawRecords.length > 0;
+    const hasColors = Object.keys(rawSubjectColors).length > 0;
+
+    if (!hasDecks && !hasRecords && !hasColors) {
       typeof showToast === "function" ? showToast("No local data found to push.") : alert("No local data found to push.");
       return;
     }
@@ -2883,7 +2888,6 @@ async function pushLocalDataToSupabase() {
       questions: d.questions || [],
       uploaded_at: d.uploadedAt || new Date().toISOString(),
       is_active: d.isActive !== false,
-      color_accent: d.colorAccent || "#2563eb",
     }));
 
     const recordsPayload = rawRecords.map((r) => ({
@@ -2901,6 +2905,14 @@ async function pushLocalDataToSupabase() {
       user_answers: r.userAnswers || {},
     }));
 
+    // Build per-subject color payload for Supabase
+    const subjectColorsPayload = Object.keys(rawSubjectColors).map((subjectKey) => ({
+      user_id: currentUser.id,
+      subject: subjectKey.toLowerCase(),
+      color_accent: rawSubjectColors[subjectKey],
+      updated_at: new Date().toISOString()
+    }));
+
     if (decksPayload.length > 0) {
       const { error: deckErr } = await sb.from("quiz_decks").upsert(decksPayload, { onConflict: "id" });
       if (deckErr) throw deckErr;
@@ -2911,7 +2923,14 @@ async function pushLocalDataToSupabase() {
       if (recErr) throw recErr;
     }
 
-    const summaryMsg = `Cloud sync complete!\n• Decks synced: ${decksPayload.length}\n• Attempt records synced: ${recordsPayload.length}`;
+    if (subjectColorsPayload.length > 0) {
+      const { error: colorErr } = await sb
+        .from("quiz_subject_colors")
+        .upsert(subjectColorsPayload, { onConflict: "user_id,subject" });
+      if (colorErr) throw colorErr;
+    }
+
+    const summaryMsg = `Cloud sync complete!\n• Decks synced: ${decksPayload.length}\n• Attempt records synced: ${recordsPayload.length}\n• Subject themes synced: ${subjectColorsPayload.length}`;
     typeof showToast === "function" ? showToast(summaryMsg) : alert(summaryMsg);
   } catch (err) {
     console.error("Cloud push failed:", err);
@@ -2921,7 +2940,6 @@ async function pushLocalDataToSupabase() {
   }
 }
 
-
 async function pullCloudDataToLocalStorage() {
   if (!currentUser) {
     openAuthModal(pullCloudDataToLocalStorage);
@@ -2929,18 +2947,21 @@ async function pullCloudDataToLocalStorage() {
   }
 
   try {
-    const [decksRes, recordsRes] = await Promise.all([
+    const [decksRes, recordsRes, colorsRes] = await Promise.all([
       sb.from("quiz_decks").select("*").eq("user_id", currentUser.id),
       sb.from("quiz_records").select("*").eq("user_id", currentUser.id),
+      sb.from("quiz_subject_colors").select("*").eq("user_id", currentUser.id),
     ]);
 
     if (decksRes.error) throw decksRes.error;
     if (recordsRes.error) throw recordsRes.error;
+    if (colorsRes.error) throw colorsRes.error;
 
     const cloudDecks = decksRes.data || [];
     const cloudRecords = recordsRes.data || [];
+    const cloudColors = colorsRes.data || [];
 
-    if (cloudDecks.length === 0 && cloudRecords.length === 0) {
+    if (cloudDecks.length === 0 && cloudRecords.length === 0 && cloudColors.length === 0) {
       typeof showToast === "function" 
         ? showToast("No cloud backups found for your account.") 
         : alert("No cloud backups found for your account.");
@@ -2956,7 +2977,6 @@ async function pullCloudDataToLocalStorage() {
       questions: d.questions || [],
       uploadedAt: d.uploaded_at,
       isActive: d.is_active !== false,
-      colorAccent: d.color_accent || d.colorAccent || "#2563eb",
     }));
 
     const normalizedRecords = cloudRecords.map((r) => ({
@@ -2973,6 +2993,7 @@ async function pullCloudDataToLocalStorage() {
       userAnswers: r.user_answers || {},
     }));
 
+    // 1. Merge Decks & Records
     const localDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
     const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
 
@@ -2984,18 +3005,27 @@ async function pullCloudDataToLocalStorage() {
     localRecords.forEach((r) => recordMap.set(r.id, r));
     normalizedRecords.forEach((r) => recordMap.set(r.id, r));
 
-    // 1. Commit merged maps into LocalStorage
+    // 2. Merge Subject Colors
+    const localSubjectColors = JSON.parse(localStorage.getItem("quiz_subject_colors") || "{}");
+    cloudColors.forEach((entry) => {
+      if (entry.subject && entry.color_accent) {
+        localSubjectColors[entry.subject.toLowerCase()] = entry.color_accent;
+      }
+    });
+
+    // 3. Commit merged data to LocalStorage
     localStorage.setItem("quizzes", JSON.stringify(Array.from(deckMap.values())));
     localStorage.setItem("quiz_records", JSON.stringify(Array.from(recordMap.values())));
+    localStorage.setItem("quiz_subject_colors", JSON.stringify(localSubjectColors));
 
-    // 2. Re-render UI components so data displays immediately
+    // 4. Re-render UI components
     await renderQuizList();
     await renderRecordsTable();
     if (typeof populateEditQuizDropdown === "function") populateEditQuizDropdown();
     updateDashboardMetrics();
 
-    // 3. User notification
-    const pullSummary = `Successfully pulled from cloud!\n• Decks: ${normalizedDecks.length}\n• Attempt Records: ${normalizedRecords.length}`;
+    // 5. User notification
+    const pullSummary = `Successfully pulled from cloud!\n• Decks: ${normalizedDecks.length}\n• Attempt Records: ${normalizedRecords.length}\n• Subject Themes: ${cloudColors.length}`;
     typeof showToast === "function" ? showToast(pullSummary) : alert(pullSummary);
 
   } catch (err) {
