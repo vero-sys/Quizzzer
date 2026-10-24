@@ -238,6 +238,25 @@ aside h2 {
    4. TOP WORKSPACE & SEARCH BAR
    ========================================================================== */
 
+/* When NOT on the Decks view on desktop: remove the entire top bar and padding */
+.top-action-bar.is-not-take {
+  display: none;
+}
+
+/* Mobile responsive handling (keeps the hamburger toggle accessible) */
+@media (max-width: 768px) {
+  /* On mobile, keep the top bar visible only for the menu button, but hide the search pill and collapse padding */
+  .top-action-bar.is-not-take {
+    display: flex !important;
+    padding: 8px 16px !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+  }
+
+  .top-action-bar.is-not-take .search-pill-box {
+    display: none !important;
+  }
+}
+
 .top-action-bar {
   display: flex;
   align-items: center;
@@ -828,6 +847,10 @@ select {
 /* ==========================================================================
    9. QUIZ RUNNER & IMMERSIVE FOCUS MODE
    ========================================================================== */
+
+.app-container.quiz-focus-mode .search-pill-box {
+  display: none !important;
+}
 
 .quiz-progress-track {
   width: 100%;
@@ -1456,6 +1479,158 @@ td:last-child {
   margin: 0;
 }
 
+/* Color Swatches in Rename Modal */
+.swatch-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--c);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.15);
+}
+
+.swatch-btn.active {
+  border-color: var(--text-header);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c);
+}
+
+/* ==========================================================================
+   SUBJECT-WIDE ACCENT THEME & BUTTON DYNAMICS
+   ========================================================================== */
+
+/* Subject Frame Theme Wrapper */
+.subject-frame {
+  --subj-accent: #2563eb; /* Fallback default */
+}
+
+/* Subject Header Action Pill & Color Dot */
+.subject-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subject-color-indicator {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background-color: var(--subj-accent, var(--primary));
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px color-mix(in srgb, var(--subj-accent, var(--primary)) 30%, transparent);
+  flex-shrink: 0;
+}
+
+.btn-subject-theme {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-subject-theme:hover {
+  background: var(--surface-alt);
+  color: var(--text-header);
+  border-color: var(--border-subtle);
+}
+
+/* 42x42px Tinted Icon Square (Inherits Subject Color) */
+.deck-icon-tile {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: color-mix(in srgb, var(--subj-accent, var(--primary)) 12%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--subj-accent, var(--primary)) 24%, transparent);
+  color: var(--subj-accent, var(--primary));
+  transition: all 0.2s ease;
+}
+
+.quiz-card:hover .deck-icon-tile {
+  transform: scale(1.05);
+}
+
+/* Themed Start Quiz Button (Per Subject) */
+.btn-start-quiz {
+  background-color: var(--subj-accent, var(--primary)) !important;
+  border-color: var(--subj-accent, var(--primary)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--subj-accent, var(--primary)) 28%, transparent);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-start-quiz:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--subj-accent, var(--primary)) 38%, transparent);
+}
+
+/* ==========================================================================
+   DECK ACCENT TILE (VARIATION 2: APPLE REMINDERS / LINEAR STYLE)
+   ========================================================================== */
+
+/* Remove any remaining thick left border bars */
+.quiz-card::before {
+  display: none !important;
+}
+
+/* Ensure clean flex alignment on desktop */
+.quiz-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-card);
+  border-radius: 18px;
+  padding: 16px 20px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  overflow: visible;
+}
+
+.quiz-card:hover {
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+
+/* 42x42px Tinted Icon Square */
+.deck-icon-tile {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: color-mix(in srgb, var(--deck-accent, var(--primary)) 12%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--deck-accent, var(--primary)) 24%, transparent);
+  color: var(--deck-accent, var(--primary));
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.quiz-card:hover .deck-icon-tile {
+  transform: scale(1.04);
+}
+
+.deck-icon-tile svg {
+  stroke-width: 2.2;
+}
+
 /* ==========================================================================
    14. MOBILE & RESPONSIVE LAYOUT (<= 768px)
    ========================================================================== */
@@ -1613,17 +1788,17 @@ td:last-child {
     gap: 6px !important;
   }
 
-  /* Mobile Quiz Card Grid Layout */
+/* Mobile Quiz Card Grid Layout with Icon Tile */
   .quiz-card {
     display: grid !important;
-    grid-template-columns: auto 1fr !important;
+    grid-template-columns: auto auto 1fr !important;
     grid-template-rows: auto auto !important;
-    column-gap: 14px !important;
-    row-gap: 12px !important;
-    align-items: start !important;
+    column-gap: 12px !important;
+    row-gap: 14px !important;
+    align-items: center !important;
     position: relative !important;
     overflow: visible !important;
-    padding: 22px 20px !important;
+    padding: 18px 16px !important;
     margin-bottom: 14px !important;
     border-radius: 18px !important;
   }
@@ -1640,8 +1815,16 @@ td:last-child {
     touch-action: none !important;
   }
 
-  .quiz-card-info {
+  .deck-icon-tile {
     grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+  }
+
+  .quiz-card-info {
+    grid-column: 3 !important;
     grid-row: 1 !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -1650,22 +1833,22 @@ td:last-child {
 
   .quiz-card-info strong {
     display: block !important;
-    font-size: 1.1rem !important;
-    line-height: 1.4 !important;
+    font-size: 1.05rem !important;
+    line-height: 1.35 !important;
     color: var(--text-header) !important;
     word-break: normal !important;
     white-space: normal !important;
   }
 
   .quiz-card-info p {
-    font-size: 0.84rem !important;
+    font-size: 0.82rem !important;
     color: var(--text-muted) !important;
-    margin-top: 4px !important;
+    margin-top: 3px !important;
     white-space: normal !important;
   }
 
   .quiz-card-actions {
-    grid-column: 2 !important;
+    grid-column: 1 / -1 !important;
     grid-row: 2 !important;
     display: flex !important;
     align-items: center !important;
@@ -1674,8 +1857,9 @@ td:last-child {
   }
 
   .quiz-card-actions .btn {
-    padding: 9px 20px !important;
-    font-size: 0.9rem !important;
+    flex: 1 !important;
+    padding: 9px 16px !important;
+    font-size: 0.88rem !important;
     font-weight: 700 !important;
   }
 
@@ -1684,7 +1868,6 @@ td:last-child {
     height: 38px !important;
     flex-shrink: 0 !important;
   }
-
   /* Mobile Weak Spots Mistake Bank Card */
   .weak-spots-card {
     display: grid !important;
