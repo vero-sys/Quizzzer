@@ -9,19 +9,26 @@
 </head>
 
 <body>
-  <!-- Mobile Overlay Backdrop -->
+  <!-- ==========================================================================
+       1. MOBILE OVERLAY BACKDROP
+       ========================================================================== -->
   <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-  <!-- Main Container Shell -->
+  <!-- ==========================================================================
+       2. MAIN APPLICATION SHELL
+       ========================================================================== -->
   <div class="app-container">
 
-    <!-- Left Navigation Sidebar (Streamlined) -->
+    <!-- ------------------------------------------------------------------------
+         2A. LEFT NAVIGATION SIDEBAR
+         ------------------------------------------------------------------------ -->
     <aside id="main-sidebar">
       <div class="brand-header">
         <div class="brand-logo-icon">Q</div>
         <h2>QuizHub</h2>
       </div>
 
+      <!-- Group 1: Workspace -->
       <span class="nav-group-title">Workspace</span>
       <button class="nav-btn active" onclick="switchView('take')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -43,6 +50,7 @@
         Attempt Records
       </button>
 
+      <!-- Group 2: Quiz Studio -->
       <span class="nav-group-title">Quiz Studio</span>
       <button class="nav-btn" onclick="switchView('upload')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -69,7 +77,7 @@
         Edit Saved Deck
       </button>
 
-      <!-- Bottom Compact Utility Area -->
+      <!-- Group 3: Cloud & Data -->
       <span class="nav-group-title">Cloud &amp; Data</span>
       <button class="nav-btn" type="button" onclick="document.getElementById('data-sync-modal').style.display='flex'">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -89,9 +97,11 @@
       <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="handleBackupFileSelect(event)" />
     </aside>
 
-    <!-- Main Workspace Area -->
+    <!-- ------------------------------------------------------------------------
+         2B. MAIN WORKSPACE CONTENT AREA
+         ------------------------------------------------------------------------ -->
     <main>
-      <!-- Top Workspace Bar -->
+      <!-- Top Action Bar (Mobile Menu & Global Search) -->
       <div class="top-action-bar">
         <button class="topbar-menu-toggle" type="button" onclick="toggleSidebar()" aria-label="Open Sidebar Menu">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -110,7 +120,9 @@
         </div>
       </div>
 
-	  <!-- View 1: Take Quiz / Library -->
+      <!-- ======================================================================
+           VIEW 1: LIBRARY & QUIZ RUNNER (view-take)
+           ====================================================================== -->
       <section id="view-take" class="view-panel active">
         <div class="panel-header-row">
           <div>
@@ -123,12 +135,8 @@
           </div>
         </div>
 
-       <!-- Metric Stat Cards -->
-        
-		
-		<!-- Compact Mini-Pill Stats Strip (All 6 Metrics) -->
+        <!-- 6-Metric Mini-Pill Stats Strip -->
         <div class="stats-banner-grid">
-          <!-- 1. Total Quizzes -->
           <div class="stat-pill" title="Active decks in library">
             <div class="stat-pill-icon">📚</div>
             <div class="stat-pill-content">
@@ -137,7 +145,6 @@
             </div>
           </div>
 
-          <!-- 2. Completed Attempts -->
           <div class="stat-pill" title="Logged study sessions">
             <div class="stat-pill-icon">✓</div>
             <div class="stat-pill-content">
@@ -146,7 +153,6 @@
             </div>
           </div>
 
-          <!-- 3. Average Accuracy -->
           <div class="stat-pill pill-primary" title="Overall score average">
             <div class="stat-pill-icon">🎯</div>
             <div class="stat-pill-content">
@@ -155,7 +161,6 @@
             </div>
           </div>
 
-          <!-- 4. Top Subject Mastery -->
           <div class="stat-pill" title="Highest accuracy subject">
             <div class="stat-pill-icon">📁</div>
             <div class="stat-pill-content">
@@ -164,7 +169,6 @@
             </div>
           </div>
 
-          <!-- 5. Flagged Intuition -->
           <div class="stat-pill" title="Accuracy when flagged">
             <div class="stat-pill-icon">🚩</div>
             <div class="stat-pill-content">
@@ -173,7 +177,6 @@
             </div>
           </div>
 
-          <!-- 6. Streak -->
           <div class="stat-pill pill-amber" title="Consecutive practice days">
             <div class="stat-pill-icon">🔥</div>
             <div class="stat-pill-content">
@@ -182,49 +185,75 @@
             </div>
           </div>
         </div>
-		
 
-        <!-- Vertical Stack Subject Frames & Pinned Drill -->
+        <!-- 1A. Deck List & Weak Spots Banner -->
         <div id="quiz-deck-view">
-          <!-- Pinned Weak Spots Drill Card -->
           <div id="weak-spots-deck-container"></div>
           <div id="available-quiz-list"></div>
         </div>
 
-        <!-- Quiz Runner Section -->
+        <!-- 1B. Exclusive Active Quiz Runner (Original Card UI + Anchored Nav & Drawer) -->
         <div id="quiz-active-runner" style="display: none;">
-          <div class="subject-frame">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+          <div class="subject-frame quiz-runner-card">
+            <!-- Header: Title, Counter, Flag & Exit Pills -->
+            <div class="quiz-runner-top-bar">
               <div>
-                <h4 id="active-quiz-title" style="font-size: 1.3rem; font-weight: 800;"></h4>
-                <span id="active-progress" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
+                <h2 id="active-quiz-title">Quiz Title</h2>
+                <div id="q-counter-label" class="quiz-runner-subtitle">Question 1 of 25</div>
               </div>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <button id="btn-flag-q" class="btn btn-secondary" type="button" onclick="toggleCurrentFlag()" title="Remember for later">
+              <div class="quiz-runner-top-actions">
+                <button type="button" class="btn btn-secondary runner-pill-btn" id="btn-flag-q" onclick="toggleCurrentFlag()">
                   <span id="flag-icon">🏳️</span> <span id="flag-label">Flag</span>
                 </button>
-                <button class="btn btn-secondary" type="button" onclick="exitQuizRunner()">Exit</button>
+                <button type="button" class="btn btn-secondary runner-pill-btn" onclick="exitQuizRunner()">
+                  Exit
+                </button>
               </div>
             </div>
 
-            <!-- Segmented Flowing & Skipped Indicator Track -->
-            <div id="quiz-progress-segments-track" class="quiz-progress-track"></div>
+            <!-- Segmented Progress Bar -->
+            <div id="quiz-progress-segments-track" class="quiz-progress-segments"></div>
 
-            <p id="active-q-text" style="font-size: 1.15rem; font-weight: 700; line-height: 1.5; margin-bottom: 16px;"></p>
-            <div id="active-options-list"></div>
-            <div id="active-explanation" class="explanation-callout" style="display: none; margin-top: 16px; padding: 14px; background: var(--amber-bg); border-radius: 12px; font-size: 0.9rem;"></div>
+            <!-- Question Text Prompt -->
+            <div id="quiz-question-text" class="quiz-question-prompt">
+              1. Question text goes here...
+            </div>
 
-            <div style="display: flex; justify-content: space-between; margin-top: 24px;">
-              <button id="btn-prev-q" class="btn btn-secondary" onclick="changeQuestion(-1)">← Previous</button>
-              <div style="display: flex; gap: 8px;">
-                <button id="btn-next-q" class="btn" onclick="changeQuestion(1)">Next →</button>
-                <button id="btn-finish-q" class="btn" style="display: none;" onclick="submitQuizAttempt()">Submit Quiz</button>
-              </div>
+            <!-- Options List (Pill Rows A, B, C, D) -->
+            <div id="quiz-options-container" class="quiz-options-list"></div>
+
+            <!-- Optional Rationale / Check Box -->
+            <div id="active-explanation" class="explanation-callout" style="display: none; margin-top: 16px;"></div>
+
+            <!-- Anchored Bottom Action Bar (Prev, Skim Matrix Trigger, Next) -->
+            <div class="quiz-runner-bottom-bar">
+              <button type="button" class="btn btn-secondary runner-pill-btn" id="btn-runner-prev" onclick="changeQuestion(-1)">
+                ← Prev
+              </button>
+
+              <button type="button" class="matrix-trigger-pill" onclick="toggleQuestionMatrix()" title="Jump to any question">
+                <span id="runner-matrix-counter">1 / 25</span>
+                <span style="font-size: 0.7rem; opacity: 0.7;">▲</span>
+              </button>
+
+              <button type="button" class="btn runner-pill-btn btn-anchored-next" id="btn-runner-next" onclick="changeQuestion(1)">
+                Next →
+              </button>
             </div>
           </div>
+
+          <!-- Floating Question Matrix Drawer & Backdrop -->
+          <div class="quiz-matrix-overlay" id="quiz-matrix-overlay" onclick="toggleQuestionMatrix()"></div>
+          <div class="quiz-matrix-drawer" id="quiz-matrix-drawer">
+            <div class="matrix-drawer-header">
+              <strong>Question Navigator</strong>
+              <button type="button" class="matrix-close-btn" onclick="toggleQuestionMatrix()">✕</button>
+            </div>
+            <div class="matrix-grid" id="drawer-matrix-grid"></div>
+          </div>
         </div>
-		
-        <!-- Results Breakdown -->
+
+        <!-- 1C. Quiz Results Summary View -->
         <div id="quiz-result-summary" style="display: none;">
           <div class="subject-frame" style="text-align: center; padding: 40px 20px;">
             <h3>Quiz Completed!</h3>
@@ -258,80 +287,9 @@
         </div>
       </section>
 
-      <!-- View 2: Upload & AI Prompt Generator -->
-      <section id="view-upload" class="view-panel">
-	  <div class="panel-header-row">
-		<div>
-		  <h3>Import / Paste Quiz</h3>
-		  <p class="subtitle">Quickly generate quizzes with AI or upload an existing document.</p>
-		</div>
-	  </div>
-
-	  <!-- Sleek AI Prompt Helper Card -->
-	  <div class="ai-prompt-banner">
-		<div class="ai-prompt-header">
-		  <div class="ai-badge">
-			<span>✨</span>
-			<strong>AI Prompt Template</strong>
-		  </div>
-		  <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
-			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-			  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-			  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-			</svg>
-			<span>Copy AI Prompt</span>
-		  </button>
-		</div>
-		<p class="ai-prompt-desc" style="margin-bottom: 0;">
-		  Copy this prompt into ChatGPT, Claude, or Gemini along with your study notes, then paste the AI's reply below.
-		</p>
-	  </div>
-
-	  <!-- Upload & Input Form Frame -->
-	  <div class="subject-frame">
-		<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
-		  <div class="form-group" style="margin-bottom: 0;">
-			<label for="quiz-title-input">Quiz Title</label>
-			<input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
-		  </div>
-
-		  <!-- Subject / Folder Input with Native Datalist Combobox -->
-		  <div class="form-group" style="margin-bottom: 0;">
-			<label for="quiz-subject-input">Subject / Folder</label>
-			<input 
-			  type="text" 
-			  id="quiz-subject-input" 
-			  list="available-subjects-list" 
-			  placeholder="Select or type new..." 
-			  autocomplete="off" 
-			/>
-			<datalist id="available-subjects-list">
-			  <!-- Dynamically populated from stored library decks -->
-			</datalist>
-		  </div>
-		</div>
-
-		<div class="form-group">
-		  <label for="raw-paste">Paste Formatted Questions Here</label>
-		  <textarea id="raw-paste" rows="8" placeholder="1. Question text...&#10;a. Option A&#10;b. Option B&#10;c. Option C&#10;d. Option D&#10;&#10;Answer Key:&#10;1. a - Explanation..."></textarea>
-		</div>
-
-		<!-- Compact File Dropzone -->
-		<div class="dropzone" style="padding: 20px; margin-bottom: 20px;" onclick="document.getElementById('file-input').click()">
-		  <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
-		  <p style="font-weight: 700; font-size: 0.92rem; color: var(--text-header);">📄 Or click to upload a .DOCX, .TXT, or .JSON file</p>
-		</div>
-
-		<div style="display: flex; gap: 10px;">
-		  <button class="btn" onclick="processAndLoadQuiz()">Save &amp; Start Quiz</button>
-		  <button class="btn btn-secondary" onclick="clearUploadForm()">Clear Form</button>
-		</div>
-
-		<div id="upload-status" class="status-box"></div>
-	  </div>
-	</section>
-
-      <!-- View 3: Records History -->
+      <!-- ======================================================================
+           VIEW 2: ATTEMPT RECORDS HISTORY (view-records)
+           ====================================================================== -->
       <section id="view-records" class="view-panel">
         <div class="panel-header-row">
           <div>
@@ -377,7 +335,81 @@
         </div>
       </section>
 
-      <!-- View 4: Clean Manual Creator -->
+      <!-- ======================================================================
+           VIEW 3: IMPORT / PASTE AI QUIZ (view-upload)
+           ====================================================================== -->
+      <section id="view-upload" class="view-panel">
+        <div class="panel-header-row">
+          <div>
+            <h3>Import / Paste Quiz</h3>
+            <p class="subtitle">Quickly generate quizzes with AI or upload an existing document.</p>
+          </div>
+        </div>
+
+        <!-- AI Prompt Helper Banner -->
+        <div class="ai-prompt-banner">
+          <div class="ai-prompt-header">
+            <div class="ai-badge">
+              <span>✨</span>
+              <strong>AI Prompt Template</strong>
+            </div>
+            <button type="button" class="btn btn-copy-prompt" onclick="copyAIPromptTemplate(this)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy AI Prompt</span>
+            </button>
+          </div>
+          <p class="ai-prompt-desc" style="margin-bottom: 0;">
+            Copy this prompt into ChatGPT, Claude, or Gemini along with your study notes, then paste the AI's reply below.
+          </p>
+        </div>
+
+        <!-- Upload & Input Form Frame -->
+        <div class="subject-frame">
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="quiz-title-input">Quiz Title</label>
+              <input type="text" id="quiz-title-input" placeholder="e.g., Abnormal Psychology Midterms" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="quiz-subject-input">Subject / Folder</label>
+              <input 
+                type="text" 
+                id="quiz-subject-input" 
+                list="available-subjects-list" 
+                placeholder="Select or type new..." 
+                autocomplete="off" 
+              />
+              <datalist id="available-subjects-list"></datalist>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="raw-paste">Paste Formatted Questions Here</label>
+            <textarea id="raw-paste" rows="8" placeholder="1. Question text...&#10;a. Option A&#10;b. Option B&#10;c. Option C&#10;d. Option D&#10;&#10;Answer Key:&#10;1. a - Explanation..."></textarea>
+          </div>
+
+          <!-- File Dropzone -->
+          <div class="dropzone" style="padding: 20px; margin-bottom: 20px;" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" style="display: none;" accept=".json,.csv,.txt,.docx" onchange="handleFileUpload(event)" />
+            <p style="font-weight: 700; font-size: 0.92rem; color: var(--text-header);">📄 Or click to upload a .DOCX, .TXT, or .JSON file</p>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <button class="btn" onclick="processAndLoadQuiz()">Save &amp; Start Quiz</button>
+            <button class="btn btn-secondary" onclick="clearUploadForm()">Clear Form</button>
+          </div>
+
+          <div id="upload-status" class="status-box"></div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           VIEW 4: MANUAL QUIZ BUILDER (view-create)
+           ====================================================================== -->
       <section id="view-create" class="view-panel">
         <div class="panel-header-row">
           <div>
@@ -408,39 +440,9 @@
         </div>
       </section>
 
-      <!-- View 5: Attempt Deep-Dive Review -->
-      <section id="view-review" class="view-panel">
-        <div class="panel-header-row">
-          <div>
-            <h3 id="review-panel-title">Attempt Review</h3>
-            <p class="subtitle" id="review-panel-subtitle">Review questions and rationales.</p>
-          </div>
-          <button class="btn btn-secondary" onclick="switchView('records')">← Back to Records</button>
-        </div>
-
-        <div id="review-score-banner" style="background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); padding: 18px 24px; margin-bottom: 20px; font-weight: 800; font-size: 1.05rem;">
-          Score: <span id="review-score-text"></span> &bull; Accuracy: <span id="review-accuracy-text"></span>
-        </div>
-
-        <div class="attempt-review-filter-pills" style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
-          <button type="button" class="summary-pill active" onclick="filterAttemptReview('all')">
-            All <span id="review-count-all" class="pill-count">0</span>
-          </button>
-          <button type="button" class="summary-pill" onclick="filterAttemptReview('correct')">
-            Correct <span id="review-count-correct" class="pill-count">0</span>
-          </button>
-          <button type="button" class="summary-pill" onclick="filterAttemptReview('mistakes')">
-            Mistakes <span id="review-count-mistakes" class="pill-count">0</span>
-          </button>
-          <button type="button" class="summary-pill" onclick="filterAttemptReview('flagged')">
-            Flagged <span id="review-count-flagged" class="pill-count">0</span>
-          </button>
-        </div>
-
-        <div id="review-all-questions-list"></div>
-      </section>
-
-      <!-- View 6: Dedicated Edit Deck Panel -->
+      <!-- ======================================================================
+           VIEW 5: EDIT SAVED DECK (view-edit)
+           ====================================================================== -->
       <section id="view-edit" class="view-panel">
         <div class="panel-header-row">
           <div>
@@ -481,10 +483,49 @@
           </div>
         </div>
       </section>
+
+      <!-- ======================================================================
+           VIEW 6: ATTEMPT DEEP-DIVE REVIEW (view-review)
+           ====================================================================== -->
+      <section id="view-review" class="view-panel">
+        <div class="panel-header-row">
+          <div>
+            <h3 id="review-panel-title">Attempt Review</h3>
+            <p class="subtitle" id="review-panel-subtitle">Review questions and rationales.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="switchView('records')">← Back to Records</button>
+        </div>
+
+        <div id="review-score-banner" style="background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); padding: 18px 24px; margin-bottom: 20px; font-weight: 800; font-size: 1.05rem;">
+          Score: <span id="review-score-text"></span> &bull; Accuracy: <span id="review-accuracy-text"></span>
+        </div>
+
+        <div class="attempt-review-filter-pills" style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+          <button type="button" class="summary-pill active" onclick="filterAttemptReview('all')">
+            All <span id="review-count-all" class="pill-count">0</span>
+          </button>
+          <button type="button" class="summary-pill" onclick="filterAttemptReview('correct')">
+            Correct <span id="review-count-correct" class="pill-count">0</span>
+          </button>
+          <button type="button" class="summary-pill" onclick="filterAttemptReview('mistakes')">
+            Mistakes <span id="review-count-mistakes" class="pill-count">0</span>
+          </button>
+          <button type="button" class="summary-pill" onclick="filterAttemptReview('flagged')">
+            Flagged <span id="review-count-flagged" class="pill-count">0</span>
+          </button>
+        </div>
+
+        <div id="review-all-questions-list"></div>
+      </section>
+
     </main>
   </div>
 
-  <!-- Modal: Unified Cloud Sync & JSON Backups -->
+  <!-- ==========================================================================
+       3. MODALS & OVERLAYS
+       ========================================================================== -->
+
+  <!-- Modal 1: Unified Cloud Sync & JSON Backups -->
   <div id="data-sync-modal" class="modal-overlay" onclick="if(event.target === this) this.style.display='none'">
     <div class="modal-content" style="max-width: 440px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -505,8 +546,8 @@
           <button class="btn btn-secondary" type="button" onclick="exportDataBackup()">📤 Export JSON</button>
           <button class="btn btn-secondary" type="button" onclick="triggerImportFileInput()">📥 Import JSON</button>
         </div>
-		
-		<span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-top: 10px;">Mistake Bank Maintenance</span>
+
+        <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-top: 10px;">Mistake Bank Maintenance</span>
         <button class="btn btn-secondary" type="button" style="width: 100%; border-color: var(--amber); color: #b45309; background: #fffdf7;" onclick="recalculateMistakeBankFromRecords()">
           Recount Mistakes
         </button>
@@ -514,7 +555,7 @@
     </div>
   </div>
 
-  <!-- Modal: Rename & Edit Deck Details -->
+  <!-- Modal 2: Rename & Edit Deck Details -->
   <div id="rename-modal" class="modal-overlay">
     <div class="modal-content">
       <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Edit Deck Details</h4>
@@ -531,11 +572,9 @@
         <input type="text" id="rename-quiz-subject" />
       </div>
 
-      <!-- Deck Accent Color Picker -->
       <div class="form-group">
         <label>Deck Color Accent</label>
         <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
-          <!-- Preset quick-pick color swatches -->
           <div class="color-swatch-list" style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button type="button" class="swatch-btn" style="--c: #2563eb;" onclick="setRenameColor('#2563eb')"></button>
             <button type="button" class="swatch-btn" style="--c: #0891b2;" onclick="setRenameColor('#0891b2')"></button>
@@ -546,7 +585,6 @@
             <button type="button" class="swatch-btn" style="--c: #db2777;" onclick="setRenameColor('#db2777')"></button>
           </div>
 
-          <!-- Custom Color Picker -->
           <label style="margin: 0; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-transform: none; font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">
             <input type="color" id="rename-quiz-color" value="#2563eb" style="width: 32px; height: 32px; padding: 0; border: none; border-radius: 8px; cursor: pointer; background: transparent;" />
             Custom
@@ -561,7 +599,7 @@
     </div>
   </div>
 
-  <!-- Modal: Quick Color Accent Picker -->
+  <!-- Modal 3: Deck Color Accent Picker -->
   <div id="deck-color-modal" class="modal-overlay" onclick="if(event.target === this) closeDeckColorModal()">
     <div class="modal-content" style="max-width: 400px;">
       <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Deck Color Accent</h4>
@@ -596,7 +634,7 @@
     </div>
   </div>
 
-  <!-- Modal: Subject Folder Color Theme Picker -->
+  <!-- Modal 4: Subject Folder Color Theme Picker -->
   <div id="subject-color-modal" class="modal-overlay" onclick="if(event.target === this) closeSubjectColorModal()">
     <div class="modal-content" style="max-width: 420px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -609,7 +647,6 @@
 
       <input type="hidden" id="subj-modal-subject-key" />
 
-      <!-- Palette Swatches -->
       <div class="form-group" style="margin-bottom: 20px;">
         <label>Preset Palette</label>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
@@ -623,7 +660,6 @@
         </div>
       </div>
 
-      <!-- Custom Hex -->
       <div class="form-group" style="margin-bottom: 24px;">
         <label for="subj-modal-custom-picker">Custom Color</label>
         <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
@@ -652,7 +688,7 @@
     </div>
   </div>
 
-  <!-- Modal: Delete Confirmation -->
+  <!-- Modal 5: Delete Confirmation -->
   <div id="delete-record-modal" class="modal-overlay">
     <div class="modal-content" style="max-width: 380px; text-align: center;">
       <h4 style="color: var(--red); margin-bottom: 8px;">Delete Record?</h4>
@@ -664,7 +700,7 @@
     </div>
   </div>
 
-  <!-- Modal: Quiz Mode Selector -->
+  <!-- Modal 6: Quiz Mode Selector -->
   <div id="quiz-mode-modal" class="modal-overlay">
     <div class="modal-content" style="max-width: 580px;">
       <h4 style="text-align: center; margin-bottom: 4px;">Select Test Format</h4>
@@ -702,27 +738,27 @@
         </div>
         <input type="range" id="mode-item-range-slider" min="1" value="1" style="width: 100%; cursor: pointer;" oninput="syncInputFromSlider(this.value)" />
       </div>
-		
-	  <div style="margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-subtle);">
-          <button type="button" id="btn-toggle-shuffle" class="mode-card-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px;" onclick="toggleQuizShuffle()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="16 3 21 3 21 8"></polyline>
-              <line x1="4" y1="20" x2="21" y2="3"></line>
-              <polyline points="21 16 21 21 16 21"></polyline>
-              <line x1="15" y1="15" x2="21" y2="21"></line>
-              <line x1="4" y1="4" x2="9" y2="9"></line>
-            </svg>
-            <span id="shuffle-btn-text" style="font-size: 0.9rem; font-weight: 700;">Question Order: Normal</span>
-          </button>
-        </div>
-		
+
+      <div style="margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-subtle);">
+        <button type="button" id="btn-toggle-shuffle" class="mode-card-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px;" onclick="toggleQuizShuffle()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 3 21 3 21 8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21 16 21 21 16 21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
+          </svg>
+          <span id="shuffle-btn-text" style="font-size: 0.9rem; font-weight: 700;">Question Order: Normal</span>
+        </button>
+      </div>
+
       <div style="text-align: center; margin-top: 20px;">
         <button class="btn btn-secondary" onclick="closeQuizModeModal()">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal: Pen & Paper Checklist -->
+  <!-- Modal 7: Pen & Paper Checklist -->
   <div id="paper-score-modal" class="modal-overlay">
     <div class="modal-content" style="max-width: 540px;">
       <h4 style="text-align: center; margin-bottom: 4px;">Log Mistakes</h4>
@@ -738,7 +774,7 @@
     </div>
   </div>
 
-  <!-- Modal: Quick Categorize Subject -->
+  <!-- Modal 8: Categorize Subject -->
   <div id="categorize-modal" class="modal-overlay">
     <div class="modal-content">
       <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 6px;">Categorize Subject</h4>
@@ -747,9 +783,7 @@
       
       <div class="form-group">
         <label for="categorize-subject-select">Select Existing Subject</label>
-        <select id="categorize-subject-select" onchange="syncCategorizeInput(this.value)">
-          <!-- Dynamically populated -->
-        </select>
+        <select id="categorize-subject-select" onchange="syncCategorizeInput(this.value)"></select>
       </div>
 
       <div class="form-group" style="margin-top: 14px;">
@@ -763,8 +797,8 @@
       </div>
     </div>
   </div>
-  
-  <!-- Admin Auth Modal (PIN Passcode) -->
+
+  <!-- Modal 9: Admin Auth Modal (PIN Passcode) -->
   <div id="auth-modal" class="modal-overlay" style="display: none;">
     <div class="modal-content" style="max-width: 340px; text-align: left;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -792,10 +826,11 @@
     </div>
   </div>
 
-  <!-- Hidden Print / PDF Export Stage -->
+  <!-- ==========================================================================
+       4. HIDDEN PRINT / PDF EXPORT STAGE & SCRIPTS
+       ========================================================================== -->
   <div id="quiz-pdf-export-stage" aria-hidden="true"></div>
-  
-  <!-- Scripts -->
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
