@@ -1,14 +1,14 @@
 /* ==========================================================================
-   1. DESIGN TOKENS & ROOT PALETTE (DONEZO SLATE BLUE)
+   1. DESIGN TOKENS & ROOT PALETTE
    ========================================================================== */
 
 :root {
-  /* Brand Palette - Deep Navy & Royal Blue */
-  --primary: #1e3a8a;          /* Deep classic navy / royal */
-  --primary-light: #2563eb;    /* Vibrant electric blue for hovers & focus */
-  --accent-green: #3b82f6;     /* Accent sky blue */
-  --accent-mint: #eff6ff;      /* Very soft ice-blue tint for pills & badges */
-  --page-bg: #f1f5f9;          /* Cool crisp slate background */
+  /* Brand Palette */
+  --primary: #1e3a8a;          
+  --primary-light: #2563eb;    
+  --accent-green: #3b82f6;     
+  --accent-mint: #eff6ff;      
+  --page-bg: #f1f5f9;          
   --surface: #ffffff;
   --surface-alt: #f8fafc;
 
@@ -59,7 +59,6 @@ body {
   padding: 24px;
 }
 
-/* Outer Floating Shell */
 .app-container {
   width: 100%;
   max-width: 1440px;
@@ -238,20 +237,16 @@ aside h2 {
    4. TOP WORKSPACE & SEARCH BAR
    ========================================================================== */
 
-/* When NOT on the Decks view on desktop: remove the entire top bar and padding */
 .top-action-bar.is-not-take {
   display: none;
 }
 
-/* Mobile responsive handling (keeps the hamburger toggle accessible) */
 @media (max-width: 768px) {
-  /* On mobile, keep the top bar visible only for the menu button, but hide the search pill and collapse padding */
   .top-action-bar.is-not-take {
     display: flex !important;
     padding: 8px 16px !important;
     border-bottom: 1px solid var(--border-subtle) !important;
   }
-
   .top-action-bar.is-not-take .search-pill-box {
     display: none !important;
   }
@@ -313,12 +308,11 @@ aside h2 {
 }
 
 /* ==========================================================================
-   5. COMPACT METRIC STAT PILLS (BALANCED EVEN-ROW GRID)
+   5. COMPACT METRIC STAT PILLS
    ========================================================================== */
 
 .stats-banner-grid {
   display: grid;
-  /* Fixed 3 even columns on desktop (renders a clean 3x2 for 6 pills) */
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   width: 100%;
@@ -326,7 +320,6 @@ aside h2 {
   box-sizing: border-box;
 }
 
-/* Individual Compact Pill */
 .stat-pill {
   display: flex;
   align-items: center;
@@ -348,7 +341,6 @@ aside h2 {
   box-shadow: 0 3px 10px rgba(30, 58, 138, 0.08);
 }
 
-/* Rounded Leading Icon Circle */
 .stat-pill-icon {
   width: 30px;
   height: 30px;
@@ -362,7 +354,6 @@ aside h2 {
   flex-shrink: 0;
 }
 
-/* Label & Value Wrapper */
 .stat-pill-content {
   display: flex;
   align-items: baseline;
@@ -388,7 +379,6 @@ aside h2 {
   text-overflow: ellipsis;
 }
 
-/* Optional Accent Highlights */
 .stat-pill.pill-primary {
   background: var(--accent-mint);
   border-color: #bfdbfe;
@@ -417,17 +407,16 @@ aside h2 {
   color: #b45309;
 }
 
-/* If the total number of items is odd, span the last one across full width */
 .stats-banner-grid > .stat-pill:last-child:nth-child(odd) {
   grid-column: 1 / -1;
 }
 
-
 /* ==========================================================================
-   6. SUBJECT FRAMES & QUIZ DECK CARDS (DESKTOP)
+   6. SUBJECT FRAMES, DECK ICONS & DRILL CARDS
    ========================================================================== */
 
 .subject-frame {
+  --subj-accent: #2563eb;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
@@ -454,6 +443,36 @@ aside h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.subject-color-indicator {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background-color: var(--subj-accent, var(--primary));
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px color-mix(in srgb, var(--subj-accent, var(--primary)) 30%, transparent);
+  flex-shrink: 0;
+}
+
+.btn-subject-theme {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-subject-theme:hover {
+  background: var(--surface-alt);
+  color: var(--text-header);
+  border-color: var(--border-subtle);
 }
 
 .subject-toggle-pill {
@@ -496,16 +515,44 @@ aside h2 {
   transform: rotate(-90deg);
 }
 
-/* Desktop: Single clean horizontal row */
+/* Linear-Style 42px Tinted Icon Square */
+.deck-icon-tile {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: color-mix(in srgb, var(--subj-accent, var(--primary)) 12%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--subj-accent, var(--primary)) 24%, transparent);
+  color: var(--subj-accent, var(--primary));
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.deck-icon-tile svg {
+  stroke-width: 2.2;
+}
+
+.quiz-card:hover .deck-icon-tile {
+  transform: scale(1.04);
+}
+
 .quiz-card {
   display: flex;
   align-items: center;
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--border-card);
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 16px 20px;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  overflow: visible;
+}
+
+.quiz-card::before {
+  display: none !important; /* Cleanup thick left bars */
 }
 
 .quiz-card:hover {
@@ -549,7 +596,7 @@ aside h2 {
   vertical-align: middle;
 }
 
-/* Pinned Weak Spots / Mistake Bank Card (Desktop Default) */
+/* Weak Spots Challenge Card */
 #weak-spots-deck-container {
   width: 100%;
   display: block;
@@ -623,7 +670,21 @@ aside h2 {
   flex-shrink: 0;
 }
 
-/* Dropdown Menu inside Card */
+/* Dynamically Colored Start Button */
+.btn-start-quiz {
+  background-color: var(--subj-accent, var(--primary)) !important;
+  border-color: var(--subj-accent, var(--primary)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--subj-accent, var(--primary)) 28%, transparent);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-start-quiz:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--subj-accent, var(--primary)) 38%, transparent);
+}
+
 .card-menu-container {
   position: relative;
   display: inline-block;
@@ -768,7 +829,6 @@ select {
   cursor: pointer;
 }
 
-/* Status message alert boxes */
 .status-box {
   display: none;
   margin-top: 16px;
@@ -845,148 +905,11 @@ select {
 }
 
 /* ==========================================================================
-   9. QUIZ RUNNER & IMMERSIVE FOCUS MODE
+   9. QUIZ RUNNER, IMMERSIVE LAYOUT & FLOATING MATRIX
    ========================================================================== */
 
-.app-container.quiz-focus-mode .search-pill-box {
-  display: none !important;
-}
-
-.quiz-progress-track {
-  width: 100%;
-  height: 8px;
-  display: flex;
-  gap: 3px;
-  background: transparent;
-  margin: 14px 0 20px 0;
-  position: relative;
-}
-
-.quiz-progress-step {
-  flex: 1;
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--border-subtle);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-}
-
-.quiz-progress-step:hover {
-  filter: brightness(0.9);
-  transform: translateY(-1px);
-}
-
-.quiz-progress-step.is-answered {
-  background: linear-gradient(90deg, #2563eb, #06b6d4, #14b8a6, #2563eb);
-  background-size: 300% 100%;
-  animation: flowingGradientShift 4s linear infinite;
-}
-
-.quiz-progress-step.is-skipped {
-  background: var(--red) !important;
-  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
-}
-
-.quiz-progress-step.is-current {
-  outline: 2px solid var(--primary-light);
-  outline-offset: 1px;
-}
-
-@keyframes flowingGradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 300% 50%;
-  }
-}
-
-#active-options-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 10px !important;
-  width: 100% !important;
-  margin: 20px 0 !important;
-}
-
-.option-select-btn {
-  width: 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  text-align: left !important;
-  gap: 14px !important;
-  padding: 14px 18px !important;
-  background: var(--surface) !important;
-  border: 1.5px solid var(--border-card) !important;
-  border-radius: var(--radius-pill) !important;
-  color: var(--text-header) !important;
-  font-size: 0.95rem !important;
-  font-weight: 600 !important;
-  cursor: pointer !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-shadow: var(--shadow-sm) !important;
-  box-sizing: border-box !important;
-}
-
-.option-select-btn:hover {
-  border-color: var(--primary-light) !important;
-  background: var(--surface-alt) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: var(--shadow-card) !important;
-}
-
-.option-select-btn strong {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 32px !important;
-  height: 32px !important;
-  border-radius: 50% !important;
-  background: var(--surface-alt) !important;
-  border: 1px solid var(--border-subtle) !important;
-  color: var(--primary) !important;
-  font-weight: 800 !important;
-  font-size: 0.85rem !important;
-  flex-shrink: 0 !important;
-  transition: all 0.2s ease !important;
-}
-
-.option-select-btn span {
-  flex: 1 !important;
-  line-height: 1.4 !important;
-}
-
-.option-select-btn.selected {
-  background: var(--accent-mint) !important;
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-}
-
-.option-select-btn.selected strong {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-  color: #ffffff !important;
-}
-
-.option-select-btn.paper-mode {
-  cursor: default !important;
-  border-style: dashed !important;
-}
-
-.option-select-btn.paper-mode:hover {
-  transform: none !important;
-  border-color: var(--border-card) !important;
-  background: var(--surface) !important;
-}
-
-#btn-flag-q.is-flagged {
-  background: var(--amber-bg) !important;
-  border-color: var(--amber) !important;
-  color: #b45309 !important;
-  font-weight: 800 !important;
-}
-
-/* Distraction-Free Runner Shell */
+/* The Distraction-Free Shell */
+.app-container.quiz-focus-mode .search-pill-box,
 .app-container.quiz-focus-mode aside,
 .app-container.quiz-focus-mode .top-action-bar,
 .app-container.quiz-focus-mode .panel-header-row,
@@ -1011,9 +934,319 @@ select {
   padding: 0 !important;
 }
 
-.app-container.quiz-focus-mode #quiz-active-runner,
-.app-container.quiz-focus-mode #quiz-result-summary {
-  width: 100% !important;
+/* Centered & Clean Active Runner Card */
+#quiz-active-runner {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 0 80px 0;
+}
+
+.quiz-runner-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  padding: 32px 32px 28px !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05) !important;
+  position: relative;
+}
+
+.quiz-runner-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.quiz-runner-top-bar h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.quiz-runner-subtitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.quiz-runner-top-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Pill utility for top & bottom buttons */
+.runner-pill-btn {
+  border-radius: 9999px !important;
+  padding: 7px 18px !important;
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+}
+
+#btn-flag-q.is-flagged {
+  background: var(--amber-bg) !important;
+  border-color: var(--amber) !important;
+  color: #b45309 !important;
+}
+
+/* Segmented Progress Track */
+.quiz-progress-segments {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 24px;
+  cursor: pointer;
+  height: 8px;
+}
+
+.quiz-progress-step {
+  flex: 1;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+}
+
+.quiz-progress-step.is-current {
+  background: #ffffff;
+  border: 2px solid var(--subj-accent, #2563eb);
+}
+
+.quiz-progress-step.is-answered {
+  background: var(--subj-accent, #2563eb);
+}
+
+.quiz-progress-step.is-skipped {
+  background: #f87171;
+}
+
+/* Clean Question Typography */
+.quiz-question-prompt {
+  font-size: 1.12rem;
+  font-weight: 400; /* Change from 800 to normal weight */
+  color: #0f172a;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+/* Original Rounded Full-Width Option Pills */
+.quiz-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quiz-option-pill {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  border: 1.5px solid #f1f5f9;
+  background: #ffffff;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #334155;
+  user-select: none;
+}
+
+.quiz-option-pill:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.quiz-option-pill.selected {
+  border-color: var(--subj-accent, var(--primary)) !important;
+  background: color-mix(in srgb, var(--subj-accent, var(--primary)) 8%, #ffffff) !important;
+  color: #0f172a !important;
+  font-weight: 600;
+}
+
+.option-letter-circle {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--subj-accent, var(--primary)) !important;
+  margin-right: 14px;
+  min-width: 22px;
+}
+
+/* Anchored Sticky Bottom Bar */
+.quiz-runner-bottom-bar {
+  position: fixed !important;
+  bottom: 18px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: calc(100% - 32px) !important;
+  max-width: 720px !important; /* Matches wrapper width */
+  z-index: 100 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  padding: 10px 14px !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08) !important;
+}
+
+.btn-anchored-next {
+  background-color: var(--subj-accent, var(--primary)) !important;
+  border-color: var(--subj-accent, var(--primary)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--subj-accent, var(--primary)) 25%, transparent) !important;
+}
+
+.btn-anchored-next:hover {
+  filter: brightness(1.08);
+}
+
+.matrix-trigger-pill {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-header);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+/* Floating Matrix Skim Drawer */
+.quiz-matrix-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9998;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.quiz-matrix-overlay.open {
+  display: flex !important;
+}
+
+.quiz-matrix-drawer {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  bottom: auto;
+  width: 100%;
+  max-width: 520px; /* Aligns with paper modal max-width (540px) */
+  background: #ffffff;
+  border-radius: var(--radius-card, 20px);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+  padding: 24px;
+  z-index: 9999;
+  animation: popUpModal 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.quiz-matrix-drawer.open {
+  display: block !important;
+}
+
+@keyframes popUpModal {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.matrix-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.matrix-drawer-header strong {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-header, #0f172a);
+}
+
+.matrix-close-btn {
+  background: var(--surface-alt, #f8fafc);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  transition: all 0.15s ease;
+}
+
+.matrix-close-btn:hover {
+  background: #ffffff;
+  color: var(--text-header, #0f172a);
+}
+
+/* Dynamic Grid matching paper modal scroll behavior */
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  max-height: 48vh; /* Matches paper modal 44-48vh scrollable viewport */
+  overflow-y: auto;
+  padding: 4px;
+}
+.matrix-node {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.matrix-node.current {
+  border-color: var(--subj-accent, #2563eb);
+  color: var(--subj-accent, #2563eb);
+  outline: 2px solid var(--subj-accent, #2563eb);
+}
+
+.matrix-node.answered {
+  background: color-mix(in srgb, var(--subj-accent, #2563eb) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--subj-accent, #2563eb) 35%, transparent);
+  color: var(--subj-accent, #2563eb);
+}
+
+.matrix-node.flagged::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
 }
 
 /* ==========================================================================
@@ -1044,31 +1277,17 @@ select {
   cursor: pointer;
 }
 
-.review-key-select:focus {
-  border-color: var(--primary);
-}
-
 .review-item-card {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 22px;
   margin-bottom: 16px;
-  transition: border-color 0.18s ease;
 }
 
-.review-item-card.is-correct {
-  border-color: #bfdbfe;
-}
-
-.review-item-card.is-wrong {
-  border-color: #fecaca;
-}
-
-.review-item-card.is-flagged {
-  border-color: #fde68a;
-  background: #fffdf7;
-}
+.review-item-card.is-correct { border-color: #bfdbfe; }
+.review-item-card.is-wrong { border-color: #fecaca; }
+.review-item-card.is-flagged { border-color: #fde68a; background: #fffdf7; }
 
 .review-item-badge {
   display: inline-block;
@@ -1079,26 +1298,9 @@ select {
   margin-bottom: 10px;
 }
 
-.badge-wrong {
-  background: var(--red-bg);
-  color: var(--red);
-}
-
-.badge-correct {
-  background: #eff6ff !important;
-  color: #1e3a8a !important;
-}
-
-.badge-flagged {
-  background: var(--amber-bg) !important;
-  color: #b45309 !important;
-  border: 1px solid #fde68a !important;
-}
-
-.badge-paper {
-  background: var(--surface-alt);
-  color: var(--text-header);
-}
+.badge-wrong { background: var(--red-bg); color: var(--red); }
+.badge-correct { background: #eff6ff !important; color: #1e3a8a !important; }
+.badge-flagged { background: var(--amber-bg) !important; color: #b45309 !important; border: 1px solid #fde68a !important; }
 
 .review-options-list {
   display: flex;
@@ -1174,7 +1376,6 @@ select {
   border: 1.5px solid var(--border-card);
   border-radius: var(--radius-pill);
   padding: 4px 14px 4px 6px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .input-with-label:focus-within {
@@ -1386,100 +1587,10 @@ td:last-child {
   color: #ffffff !important;
 }
 
-.mistake-check-item.is-wrong .mistake-box::after {
-  content: "✕";
-}
+.mistake-check-item.is-wrong .mistake-box::after { content: "✕"; }
+.mode-card-btn.selected svg { stroke: var(--primary); }
 
-.mode-card-btn.selected svg {
-  stroke: var(--primary);
-}
-
-/* ==========================================================================
-   AI PROMPT HELPER BANNER (MODERN FLUENT CARD)
-   ========================================================================== */
-
-.ai-prompt-banner {
-  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-  border: 1.5px solid #bfdbfe;
-  border-radius: var(--radius-card);
-  padding: 22px 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.05);
-}
-
-.ai-prompt-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.ai-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #dbeafe;
-  color: var(--primary);
-  padding: 5px 12px;
-  border-radius: var(--radius-pill);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.btn-copy-prompt {
-  background: #ffffff !important;
-  color: var(--primary) !important;
-  border: 1.5px solid #bfdbfe !important;
-  border-radius: var(--radius-pill) !important;
-  padding: 7px 16px !important;
-  font-size: 0.82rem !important;
-  font-weight: 700 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  cursor: pointer !important;
-  transition: all 0.18s ease !important;
-}
-
-.btn-copy-prompt:hover {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-  color: #ffffff !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
-}
-
-.btn-copy-prompt.copied {
-  background: #22c55e !important;
-  border-color: #22c55e !important;
-  color: #ffffff !important;
-}
-
-.ai-prompt-desc {
-  font-size: 0.86rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-  margin-bottom: 12px;
-}
-
-.ai-prompt-preview {
-  background: #ffffff;
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 14px 18px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.82rem;
-  color: #334155;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: all;
-  margin: 0;
-}
-
-/* Color Swatches in Rename Modal */
+/* Color Swatches in Rename/Theme Modals */
 .swatch-btn {
   width: 26px;
   height: 26px;
@@ -1497,138 +1608,6 @@ td:last-child {
 .swatch-btn.active {
   border-color: var(--text-header);
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c);
-}
-
-/* ==========================================================================
-   SUBJECT-WIDE ACCENT THEME & BUTTON DYNAMICS
-   ========================================================================== */
-
-/* Subject Frame Theme Wrapper */
-.subject-frame {
-  --subj-accent: #2563eb; /* Fallback default */
-}
-
-/* Subject Header Action Pill & Color Dot */
-.subject-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.subject-color-indicator {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background-color: var(--subj-accent, var(--primary));
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3px color-mix(in srgb, var(--subj-accent, var(--primary)) 30%, transparent);
-  flex-shrink: 0;
-}
-
-.btn-subject-theme {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: 4px 10px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.15s ease;
-}
-
-.btn-subject-theme:hover {
-  background: var(--surface-alt);
-  color: var(--text-header);
-  border-color: var(--border-subtle);
-}
-
-/* 42x42px Tinted Icon Square (Inherits Subject Color) */
-.deck-icon-tile {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background-color: color-mix(in srgb, var(--subj-accent, var(--primary)) 12%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--subj-accent, var(--primary)) 24%, transparent);
-  color: var(--subj-accent, var(--primary));
-  transition: all 0.2s ease;
-}
-
-.quiz-card:hover .deck-icon-tile {
-  transform: scale(1.05);
-}
-
-/* Themed Start Quiz Button (Per Subject) */
-.btn-start-quiz {
-  background-color: var(--subj-accent, var(--primary)) !important;
-  border-color: var(--subj-accent, var(--primary)) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--subj-accent, var(--primary)) 28%, transparent);
-  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.btn-start-quiz:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--subj-accent, var(--primary)) 38%, transparent);
-}
-
-/* ==========================================================================
-   DECK ACCENT TILE (VARIATION 2: APPLE REMINDERS / LINEAR STYLE)
-   ========================================================================== */
-
-/* Remove any remaining thick left border bars */
-.quiz-card::before {
-  display: none !important;
-}
-
-/* Ensure clean flex alignment on desktop */
-.quiz-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border-card);
-  border-radius: 18px;
-  padding: 16px 20px;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  position: relative;
-  overflow: visible;
-}
-
-.quiz-card:hover {
-  border-color: var(--border-subtle);
-  box-shadow: var(--shadow-card);
-  transform: translateY(-1px);
-}
-
-/* 42x42px Tinted Icon Square */
-.deck-icon-tile {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background-color: color-mix(in srgb, var(--deck-accent, var(--primary)) 12%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--deck-accent, var(--primary)) 24%, transparent);
-  color: var(--deck-accent, var(--primary));
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
-}
-
-.quiz-card:hover .deck-icon-tile {
-  transform: scale(1.04);
-}
-
-.deck-icon-tile svg {
-  stroke-width: 2.2;
 }
 
 /* ==========================================================================
@@ -1720,9 +1699,6 @@ td:last-child {
     overflow-x: hidden !important;
   }
 
-  /* Mobile: Clean 2-column grid for pills */
-  
-  /* Mobile: Clean 2x3 grid */
   .stats-banner-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 8px !important;
@@ -1741,15 +1717,9 @@ td:last-child {
     font-size: 0.8rem !important;
   }
 
-  .stat-pill-label {
-    font-size: 0.7rem !important;
-  }
+  .stat-pill-label { font-size: 0.7rem !important; }
+  .stat-pill-value { font-size: 0.85rem !important; }
 
-  .stat-pill-value {
-    font-size: 0.85rem !important;
-  }
-
-  /* If there is ever an odd 7th or 5th item, expand it across full row width */
   .stats-banner-grid > .stat-pill:last-child:nth-child(odd) {
     grid-column: 1 / -1 !important;
   }
@@ -1788,7 +1758,6 @@ td:last-child {
     gap: 6px !important;
   }
 
-/* Mobile Quiz Card Grid Layout with Icon Tile */
   .quiz-card {
     display: grid !important;
     grid-template-columns: auto auto 1fr !important;
@@ -1811,8 +1780,6 @@ td:last-child {
     justify-content: center !important;
     padding: 2px 0 !important;
     cursor: grab !important;
-    color: var(--text-light) !important;
-    touch-action: none !important;
   }
 
   .deck-icon-tile {
@@ -1835,15 +1802,6 @@ td:last-child {
     display: block !important;
     font-size: 1.05rem !important;
     line-height: 1.35 !important;
-    color: var(--text-header) !important;
-    word-break: normal !important;
-    white-space: normal !important;
-  }
-
-  .quiz-card-info p {
-    font-size: 0.82rem !important;
-    color: var(--text-muted) !important;
-    margin-top: 3px !important;
     white-space: normal !important;
   }
 
@@ -1859,8 +1817,6 @@ td:last-child {
   .quiz-card-actions .btn {
     flex: 1 !important;
     padding: 9px 16px !important;
-    font-size: 0.88rem !important;
-    font-weight: 700 !important;
   }
 
   .quiz-card-actions .menu-trigger-btn {
@@ -1868,7 +1824,7 @@ td:last-child {
     height: 38px !important;
     flex-shrink: 0 !important;
   }
-  /* Mobile Weak Spots Mistake Bank Card */
+
   .weak-spots-card {
     display: grid !important;
     grid-template-columns: auto 1fr !important;
@@ -1878,33 +1834,16 @@ td:last-child {
     align-items: start !important;
     padding: 18px 16px !important;
     width: 100% !important;
-    box-sizing: border-box !important;
   }
 
-  .weak-spots-card .weak-spots-icon {
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-
-  .weak-spots-card .quiz-card-info {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
+  .weak-spots-card .weak-spots-icon { grid-column: 1 !important; grid-row: 1 !important; }
+  .weak-spots-card .quiz-card-info { grid-column: 2 !important; grid-row: 1 !important; width: 100% !important; }
+  
   .weak-spots-card .quiz-card-actions {
     grid-column: 1 / -1 !important;
     grid-row: 2 !important;
     display: flex !important;
-    gap: 8px !important;
     width: 100% !important;
-  }
-
-  .weak-spots-card .quiz-card-actions .btn {
-    flex: 1 !important;
-    padding: 10px !important;
-    font-size: 0.9rem !important;
   }
 
   .options-input-grid {
@@ -1921,11 +1860,6 @@ td:last-child {
     align-items: center !important;
   }
 
-  #view-records .panel-header-row .btn-danger {
-    padding: 7px 14px !important;
-    font-size: 0.8rem !important;
-  }
-
   .app-container.quiz-focus-mode main {
     padding: 16px 12px !important;
   }
@@ -1940,12 +1874,10 @@ td:last-child {
 }
 
 @media print {
-  /* Hide all app shells, navigation, and workspace */
   body * {
     visibility: hidden;
   }
 
-  /* Show only the PDF print container */
   #quiz-pdf-export-stage,
   #quiz-pdf-export-stage * {
     visibility: visible;
@@ -1969,7 +1901,6 @@ td:last-child {
     margin: 14mm 12mm 14mm 12mm;
   }
 
-  /* Header details */
   .pdf-header {
     border-bottom: 2px solid #000;
     padding-bottom: 8px;
@@ -1991,7 +1922,6 @@ td:last-child {
     text-align: right;
   }
 
-  /* Standard 2-Column MCQ Layout */
   .pdf-questions-grid {
     columns: 2;
     column-gap: 24px;
@@ -2028,7 +1958,6 @@ td:last-child {
     min-width: 16px;
   }
 
-  /* Dedicated Answer Key & Rationale Section (New Page) */
   .pdf-answers-section {
     break-before: page;
     page-break-before: always;
