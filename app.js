@@ -10,8 +10,8 @@ const SUPABASE_ANON_KEY = "sb_publishable_xOAPwp8cUxAYmG9CjoiNFQ_XOjNXQ25";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PERSONAL_AUTH_CONFIG = {
-  dummyEmail: "admin@quizhub.local", // Set this to the email created in Supabase
-  getPassword: (pin) => `${pin}`
+  dummyEmail: "admin@quizhub.local",
+  getPassword: (pin) => `${pin}`,
 };
 
 /* --------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const PERSONAL_AUTH_CONFIG = {
 let currentUser = null;
 let pendingAuthCallback = null;
 
-// Library and Runner State
+// Library & Runner State
 let cachedDecks = [];
 let activeQuizInstance = null;
 let currentQuestionIdx = 0;
@@ -33,8 +33,9 @@ let selectedPaperMistakes = new Set();
 let currentSummaryReviewItems = [];
 let isQuizShuffleEnabled = false;
 let isWeakSpotsDrillActive = false;
+let draggedItem = null;
 
-// Records and Table State
+// Records & Table State
 let currentRecordsCache = [];
 let currentRecordsFilter = "all"; // "all" | "device" | "paper"
 let currentSortColumn = "date"; // "title" | "date" | "score" | "accuracy"
@@ -44,7 +45,7 @@ let currentAttemptFilter = "all"; // "all" | "correct" | "mistakes" | "flagged"
 let pendingDeleteRecordId = null;
 
 /* --------------------------------------------------------------------------
-   3. LIFECYCLE & ROUTING
+   3. LIFECYCLE, ROUTING & DASHBOARD METRICS
    -------------------------------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
@@ -83,7 +84,6 @@ function switchView(viewName) {
   );
   if (navButton) navButton.classList.add("active");
 
-  // Toggle top bar presence based on whether we are on the Library view ("take")
   const topBar = document.querySelector(".top-action-bar");
   if (topBar) {
     topBar.classList.toggle("is-not-take", viewName !== "take");
@@ -97,7 +97,7 @@ function updateDashboardMetrics() {
   let totalDecksCount = cachedDecks.length;
   if (!totalDecksCount) {
     try {
-      totalDecksCount = JSON.parse(localStorage.getItem("quizzes") || "[]").length;
+      totalDecksCount = JSON.parse(localStorage.getItem("quizzes") || "[]").filter((d) => d.isActive !== false).length;
     } catch {
       totalDecksCount = 0;
     }
@@ -139,12 +139,11 @@ function updateDashboardMetrics() {
     }
   }
 
-  // Keep all 6 mini-stat pills synchronized across views
   calculateRecordsStatistics(records);
 }
 
 /* --------------------------------------------------------------------------
-   4. NAVIGATION, SIDEBAR & THEME
+   4. SIDEBAR, THEME & UI HELPERS
    -------------------------------------------------------------------------- */
 function toggleSidebar() {
   const sidebar = document.getElementById("main-sidebar");
@@ -198,12 +197,12 @@ function copyAIPromptTemplate(btnElement) {
   const promptText = `Please generate a multiple-choice quiz about [TOPIC/DOCUMENT].
 
 Rules:
-- Put the entire output inside a single plain text block (\`\`\`text ... \`\`\`) to preserve exact formatting and spacing.
+- Put the entire output inside a text block
 - Do NOT use markdown styling (no bold, no italics, no asterisks like **word** or *word*).
 - No introductory or concluding remarks (output only the code block).
 - Exactly 4 options per question (a, b, c, d).
 - Do not escape dots with backslashes (use "1." not "1\\.").
-- Provide a clear rationale for each answer in the key.
+- Provide a clear rationale for each answer in the key. Then "-- ELI5" (you don't have to say eli5 everytime)
 - Randomize correct options so consecutive items rarely share the same answer letter.
 
 Strictly format the text block content as follows:
@@ -215,7 +214,7 @@ c. [Option C]
 d. [Option D]
 
 Answer Key:
-1. a - [Explanation / rationale here]`;
+1. a - [Explanation / rationale here -- ELI5]`;
 
   const originalHtml = btnElement ? btnElement.innerHTML : "";
 
@@ -306,8 +305,8 @@ async function handleAuthLogin() {
       pendingAuthCallback = null;
       await action();
     } else {
-      typeof showToast === "function" 
-        ? showToast("Unlocked successfully!") 
+      typeof showToast === "function"
+        ? showToast("Unlocked successfully!")
         : alert("Unlocked successfully!");
     }
   } catch (err) {
@@ -332,8 +331,8 @@ async function handleAuthLogout() {
       : alert("Locked. Switched to guest mode.");
   } catch (err) {
     console.error("Lock/Sign-out failed:", err);
-    typeof showToast === "function" 
-      ? showToast("Sign out failed: " + err.message) 
+    typeof showToast === "function"
+      ? showToast("Sign out failed: " + err.message)
       : alert("Sign out failed: " + err.message);
   }
 }
@@ -353,18 +352,8 @@ function updateAuthSidebar(user) {
 }
 
 /* --------------------------------------------------------------------------
-   6. QUIZ LIBRARY & DECK CONTROLS (LOCAL-FIRST)
+   6. WEAK SPOTS MISTAKE BANK & DRILL CHALLENGE
    -------------------------------------------------------------------------- */
-
-function isDeckNew(uploadedAtStr, daysThreshold = 3) {
-  if (!uploadedAtStr) return false;
-  const uploadedDate = new Date(uploadedAtStr);
-  if (isNaN(uploadedDate.getTime())) return false;
-  const diffTime = Date.now() - uploadedDate.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays <= daysThreshold;
-}
-
 function getMistakeBank() {
   let bank = {};
   try {
@@ -391,7 +380,7 @@ function getMistakeBank() {
               fail_count: 1,
               is_mastered: false,
               historical_mistake: true,
-              last_failed_at: rec.date || new Date().toISOString().split("T")[0]
+              last_failed_at: rec.date || new Date().toISOString().split("T")[0],
             };
           } else {
             bank[key].fail_count = (bank[key].fail_count || 1) + 1;
@@ -427,17 +416,16 @@ function recordQuestionMistake(questionObj, deckId = "general") {
       fail_count: 1,
       is_mastered: false,
       historical_mistake: true,
-      last_failed_at: new Date().toISOString().split("T")[0]
+      last_failed_at: new Date().toISOString().split("T")[0],
     };
   } else {
     bank[key].fail_count = (bank[key].fail_count || 0) + 1;
-    bank[key].is_mastered = false; // re-activates if missed again
+    bank[key].is_mastered = false;
     bank[key].last_failed_at = new Date().toISOString().split("T")[0];
   }
 
   saveMistakeBank(bank);
 }
-
 
 function renderWeakSpotsBanner() {
   const container = document.getElementById("weak-spots-deck-container");
@@ -447,13 +435,11 @@ function renderWeakSpotsBanner() {
   const allEntries = Object.values(bank);
   const activeMistakes = allEntries.filter((item) => item.is_mastered !== true);
 
-  // If no mistakes ever recorded in history
   if (allEntries.length === 0) {
     container.innerHTML = "";
     return;
   }
 
-  // If all mistakes have been graduated and mastered
   if (activeMistakes.length === 0) {
     container.innerHTML = `
       <div class="weak-spots-card" style="border-color: #86efac; background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);">
@@ -470,7 +456,6 @@ function renderWeakSpotsBanner() {
     return;
   }
 
-  // Standard Active Card
   container.innerHTML = `
     <div class="weak-spots-card">
       <div class="weak-spots-icon">🧠</div>
@@ -521,7 +506,7 @@ function recalculateMistakeBankFromRecords() {
             fail_count: 1,
             is_mastered: false,
             historical_mistake: true,
-            last_failed_at: rec.date || new Date().toISOString().split("T")[0]
+            last_failed_at: rec.date || new Date().toISOString().split("T")[0],
           };
           totalMistakesFound++;
         } else {
@@ -546,12 +531,11 @@ function launchWeakSpotsDrill() {
   const activeMistakes = Object.values(bank).filter((item) => item.is_mastered !== true);
   if (activeMistakes.length === 0) return;
 
-  // Build a synthetic quiz instance
   const syntheticQuestions = activeMistakes.map((entry, idx) => ({
     ...entry.question,
     id: idx + 1,
     bankKey: entry.id,
-    failCount: entry.fail_count
+    failCount: entry.fail_count,
   }));
 
   const syntheticQuiz = {
@@ -560,7 +544,7 @@ function launchWeakSpotsDrill() {
     subject: "Mastery Bank",
     totalQuestions: syntheticQuestions.length,
     questions: syntheticQuestions,
-    isWeakSpots: true
+    isWeakSpots: true,
   };
 
   isWeakSpotsDrillActive = true;
@@ -574,19 +558,71 @@ function launchWeakSpotsDrill() {
   const maxLabel = document.getElementById("slider-max-label");
 
   if (input && slider) {
-    input.min = 1; input.max = total; input.value = total;
-    slider.min = 1; slider.max = total; slider.value = total;
+    input.min = 1;
+    input.max = total;
+    input.value = total;
+    slider.min = 1;
+    slider.max = total;
+    slider.value = total;
     if (totalHint) totalHint.innerText = `/ ${total} items`;
     if (maxLabel) maxLabel.innerText = `${total} items (All)`;
   }
 
-  isQuizShuffleEnabled = true; // Default to shuffled for drill
+  isQuizShuffleEnabled = true;
   const shuffleBtn = document.getElementById("btn-toggle-shuffle");
   const shuffleLabel = document.getElementById("shuffle-btn-text");
   if (shuffleBtn) shuffleBtn.classList.add("selected");
   if (shuffleLabel) shuffleLabel.innerText = "Question Order: Shuffled 🔀";
 
   modal ? (modal.style.display = "flex") : startQuizSession(syntheticQuiz, "device");
+}
+
+/* --------------------------------------------------------------------------
+   7. QUIZ LIBRARY, SUBJECT FRAMES & THEME ACCENTS
+   -------------------------------------------------------------------------- */
+function isDeckNew(uploadedAtStr, daysThreshold = 3) {
+  if (!uploadedAtStr) return false;
+  const uploadedDate = new Date(uploadedAtStr);
+  if (isNaN(uploadedDate.getTime())) return false;
+  const diffTime = Date.now() - uploadedDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= daysThreshold;
+}
+
+function getSubjectColorsMap() {
+  try {
+    return JSON.parse(localStorage.getItem("quiz_subject_colors") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSubjectColorsMap(map) {
+  localStorage.setItem("quiz_subject_colors", JSON.stringify(map));
+}
+
+function getSubjectColor(subjectName, deckColorAccent = null) {
+  // 1. If the deck itself has a saved colorAccent, prioritize it
+  if (deckColorAccent && /^#[0-9A-F]{6}$/i.test(deckColorAccent)) {
+    return deckColorAccent;
+  }
+
+  const map = getSubjectColorsMap();
+  const normalizedKey = (subjectName || "General").trim().toLowerCase();
+
+  // 2. Direct exact match
+  if (map[normalizedKey]) {
+    return map[normalizedKey];
+  }
+
+  // 3. Fallback fuzzy match (handles trailing spaces or minor typos)
+  for (const savedSubject of Object.keys(map)) {
+    if (savedSubject.includes(normalizedKey) || normalizedKey.includes(savedSubject)) {
+      return map[savedSubject];
+    }
+  }
+
+  return "#2563eb"; // Final fallback
 }
 
 async function renderQuizList() {
@@ -623,8 +659,6 @@ async function renderQuizList() {
     frame.className = "subject-frame";
     frame.id = `subject-frame-${safeSubjId}`;
     frame.dataset.subject = subjectName;
-    
-    // Inject the subject theme variable to propagate through all child decks
     frame.style.setProperty("--subj-accent", subjectColor);
 
     frame.innerHTML = `
@@ -637,7 +671,6 @@ async function renderQuizList() {
         </div>
 
         <div class="subject-header-actions" style="display: flex; align-items: center; gap: 8px;">
-          <!-- Quick Subject Theme Palette Trigger -->
           <button type="button" class="btn-subject-theme" onclick="event.stopPropagation(); openSubjectColorModal('${encodeURIComponent(subjectName)}')">
             <span>🎨 Color</span>
           </button>
@@ -671,7 +704,6 @@ async function renderQuizList() {
           </svg>
         </div>
 
-        <!-- Tinted Icon Tile inheriting subject color -->
         <div class="deck-icon-tile">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -689,7 +721,6 @@ async function renderQuizList() {
         </div>
 
         <div class="quiz-card-actions">
-          <!-- Button styled dynamically with per-subject theme -->
           <button class="btn btn-start-quiz" type="button" onclick="launchQuizById('${quiz.id}')">Start Quiz</button>
           
           <div class="card-menu-container">
@@ -714,42 +745,32 @@ async function renderQuizList() {
 
 function filterQuizzesRealtime(query) {
   const term = query.toLowerCase().trim();
-  const libraryContainer = document.getElementById('available-quiz-list');
+  const libraryContainer = document.getElementById("available-quiz-list");
   if (!libraryContainer) return;
 
-  // 1. If search is cleared, restore all frames and cards to their CSS defaults
   if (!term) {
-    libraryContainer.querySelectorAll('.quiz-card').forEach(card => {
-      card.style.display = '';
-    });
-    libraryContainer.querySelectorAll('.subject-frame').forEach(frame => {
-      frame.style.display = '';
-    });
+    libraryContainer.querySelectorAll(".quiz-card").forEach((card) => (card.style.display = ""));
+    libraryContainer.querySelectorAll(".subject-frame").forEach((frame) => (frame.style.display = ""));
     return;
   }
 
-  // 2. Filter only cards within the library list container
-  const subjectFrames = libraryContainer.querySelectorAll('.subject-frame');
-
-  subjectFrames.forEach(frame => {
-    const cards = frame.querySelectorAll('.quiz-card');
+  const subjectFrames = libraryContainer.querySelectorAll(".subject-frame");
+  subjectFrames.forEach((frame) => {
+    const cards = frame.querySelectorAll(".quiz-card");
     let hasVisibleCards = false;
 
-    cards.forEach(card => {
-      const title = card.querySelector('strong')?.innerText.toLowerCase() || "";
+    cards.forEach((card) => {
+      const title = card.querySelector("strong")?.innerText.toLowerCase() || "";
       const subject = card.dataset.subject?.toLowerCase() || "";
       const matches = title.includes(term) || subject.includes(term);
 
-      card.style.display = matches ? '' : 'none';
+      card.style.display = matches ? "" : "none";
       if (matches) hasVisibleCards = true;
     });
 
-    // 3. Keep the frame visible only if at least one card inside matches
-    frame.style.display = hasVisibleCards ? '' : 'none';
-
-    // 4. Temporarily expand collapsed frames during search so matching items are visible
-    if (hasVisibleCards && frame.classList.contains('is-collapsed')) {
-      frame.classList.remove('is-collapsed');
+    frame.style.display = hasVisibleCards ? "" : "none";
+    if (hasVisibleCards && frame.classList.contains("is-collapsed")) {
+      frame.classList.remove("is-collapsed");
     }
   });
 }
@@ -786,10 +807,7 @@ document.addEventListener("click", () => {
   document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
 });
 
-// Drag and Drop Ordering
-let draggedItem = null;
-
-function attachDragEvents(card, container) {
+function attachDragEvents(card) {
   const handle = card.querySelector(".quiz-drag-handle") || card;
 
   card.addEventListener("dragstart", (e) => {
@@ -820,7 +838,7 @@ function attachDragEvents(card, container) {
     card.classList.remove("drag-over");
   });
 
-  handle.addEventListener("touchstart", (e) => {
+  handle.addEventListener("touchstart", () => {
     draggedItem = card;
     card.classList.add("is-dragging");
     if (navigator.vibrate) navigator.vibrate(25);
@@ -863,8 +881,7 @@ async function saveReorderedDeckSequence(subjectName) {
   localStorage.setItem("quizzes", JSON.stringify(cachedDecks));
 }
 
-// Rename & Categorization Modals
-
+// Rename, Categorize, Delete & Color Modals
 function setRenameColor(hexColor) {
   const colorInput = document.getElementById("rename-quiz-color");
   if (colorInput) colorInput.value = hexColor;
@@ -885,7 +902,7 @@ function openRenameModal(quizId, encodedTitle) {
   const subjectInput = document.getElementById("rename-quiz-subject");
   if (subjectInput) subjectInput.value = targetQuiz ? (targetQuiz.subject || "General") : "General";
 
-  const currentColor = (targetQuiz && targetQuiz.colorAccent) ? targetQuiz.colorAccent : "#2563eb";
+  const currentColor = targetQuiz?.colorAccent || "#2563eb";
   setRenameColor(currentColor);
 
   const modal = document.getElementById("rename-modal");
@@ -985,28 +1002,153 @@ async function saveSubjectCategorization() {
 async function deleteQuiz(quizId) {
   if (!confirm("Are you sure you want to remove this quiz from your local library?")) return;
 
-  let stored = JSON.parse(localStorage.getItem('quizzes') || '[]');
-  
-  // Soft delete locally: mark as inactive so the deletion syncs to cloud on next push
-  const target = stored.find(q => q.id === quizId);
+  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
+  const target = stored.find((q) => q.id === quizId);
   if (target) {
     target.isActive = false;
   }
-  localStorage.setItem('quizzes', JSON.stringify(stored));
+  localStorage.setItem("quizzes", JSON.stringify(stored));
 
-  // Re-render library showing only active decks
   await renderQuizList();
   updateDashboardMetrics();
-}/* --------------------------------------------------------------------------
-   7. QUIZ EXECUTION ENGINE
-   -------------------------------------------------------------------------- */
+}
 
-function launchQuizById(quizId) {
+function openSubjectColorModal(encodedSubjectName) {
+  const subjectName = decodeURIComponent(encodedSubjectName);
+  const currentColor = getSubjectColor(subjectName);
+
+  document.getElementById("subj-modal-subject-key").value = subjectName;
+  const nameDisplay = document.getElementById("subj-modal-name-display");
+  if (nameDisplay) nameDisplay.innerText = subjectName;
+
+  selectSubjectColor(currentColor);
+
+  const modal = document.getElementById("subject-color-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function selectSubjectColor(hexColor) {
+  const picker = document.getElementById("subj-modal-custom-picker");
+  const hexInput = document.getElementById("subj-modal-hex-input");
+
+  if (picker) picker.value = hexColor;
+  if (hexInput) hexInput.value = hexColor.toUpperCase();
+
+  document.querySelectorAll(".subj-swatch").forEach((btn) => {
+    const btnColor = btn.style.getPropertyValue("--c").trim().toLowerCase();
+    btn.classList.toggle("active", btnColor === hexColor.toLowerCase());
+  });
+}
+
+function syncSubjCustomColor(val) {
+  const hexInput = document.getElementById("subj-modal-hex-input");
+  if (hexInput) hexInput.value = val.toUpperCase();
+  selectSubjectColor(val);
+}
+
+function syncSubjHexInput(val) {
+  if (/^#[0-9A-F]{6}$/i.test(val)) {
+    const picker = document.getElementById("subj-modal-custom-picker");
+    if (picker) picker.value = val;
+    selectSubjectColor(val);
+  }
+}
+
+function closeSubjectColorModal() {
+  const modal = document.getElementById("subject-color-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveSubjectColor() {
+  const subjectName = document.getElementById("subj-modal-subject-key")?.value;
+  const newColor = document.getElementById("subj-modal-custom-picker")?.value || "#2563eb";
+  if (!subjectName) return;
+
+  const map = getSubjectColorsMap();
+  map[subjectName.trim().toLowerCase()] = newColor;
+  saveSubjectColorsMap(map);
+
+  closeSubjectColorModal();
+  await renderQuizList();
+}
+
+function openDeckColorModal(quizId) {
+  document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
+  const target = (cachedDecks || []).find((q) => q.id === quizId);
+  if (!target) return;
+
+  document.getElementById("color-modal-quiz-id").value = quizId;
+  const currentColor = target.colorAccent || "#2563eb";
+  selectDeckColorModal(currentColor);
+
+  const modal = document.getElementById("deck-color-modal");
+  if (modal) modal.style.display = "flex";
+}
+
+function selectDeckColorModal(hexColor) {
+  const colorPicker = document.getElementById("deck-modal-custom-color");
+  const hexInput = document.getElementById("deck-modal-hex-input");
+
+  if (colorPicker) colorPicker.value = hexColor;
+  if (hexInput) hexInput.value = hexColor.toUpperCase();
+
+  document.querySelectorAll(".deck-modal-swatch").forEach((btn) => {
+    const btnColor = btn.style.getPropertyValue("--c").trim().toLowerCase();
+    btn.classList.toggle("active", btnColor === hexColor.toLowerCase());
+  });
+}
+
+function syncDeckModalCustomColor(val) {
+  const hexInput = document.getElementById("deck-modal-hex-input");
+  if (hexInput) hexInput.value = val.toUpperCase();
+  selectDeckColorModal(val);
+}
+
+function syncDeckModalHexInput(val) {
+  if (/^#[0-9A-F]{6}$/i.test(val)) {
+    const colorPicker = document.getElementById("deck-modal-custom-color");
+    if (colorPicker) colorPicker.value = val;
+    selectDeckColorModal(val);
+  }
+}
+
+function closeDeckColorModal() {
+  const modal = document.getElementById("deck-color-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveDeckColorModal() {
+  const quizId = document.getElementById("color-modal-quiz-id")?.value;
+  const chosenColor = document.getElementById("deck-modal-custom-color")?.value || "#2563eb";
+  if (!quizId) return;
+
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  const quiz = stored.find((q) => q.id === quizId);
-  if (!quiz) return;
+  const target = stored.find((q) => q.id === quizId);
+  if (target) {
+    target.colorAccent = chosenColor;
+    localStorage.setItem("quizzes", JSON.stringify(stored));
+  }
 
-  pendingQuizForMode = quiz;
+  const cachedTarget = (cachedDecks || []).find((q) => q.id === quizId);
+  if (cachedTarget) cachedTarget.colorAccent = chosenColor;
+
+  closeDeckColorModal();
+  await renderQuizList();
+}
+
+/* --------------------------------------------------------------------------
+   8. QUIZ EXECUTION ENGINE & FLOATING QUESTION MATRIX
+   -------------------------------------------------------------------------- */
+function launchQuizById(quizId) {
+  const quiz = (cachedDecks || []).find((q) => q.id === quizId);
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    alert("This quiz deck has no questions.");
+    return;
+  }
+
+  isWeakSpotsDrillActive = false;
+  pendingQuizForMode = JSON.parse(JSON.stringify(quiz));
+
   const total = quiz.questions.length;
   const modal = document.getElementById("quiz-mode-modal");
   const input = document.getElementById("mode-item-count-input");
@@ -1015,23 +1157,32 @@ function launchQuizById(quizId) {
   const maxLabel = document.getElementById("slider-max-label");
 
   if (input && slider) {
-    input.min = 1; input.max = total; input.value = total;
-    slider.min = 1; slider.max = total; slider.value = total;
+    input.min = 1;
+    input.max = total;
+    input.value = total;
+    slider.min = 1;
+    slider.max = total;
+    slider.value = total;
     if (totalHint) totalHint.innerText = `/ ${total} items`;
     if (maxLabel) maxLabel.innerText = `${total} items (All)`;
   }
-  
+
   isQuizShuffleEnabled = false;
   const shuffleBtn = document.getElementById("btn-toggle-shuffle");
   const shuffleLabel = document.getElementById("shuffle-btn-text");
   if (shuffleBtn) shuffleBtn.classList.remove("selected");
   if (shuffleLabel) shuffleLabel.innerText = "Question Order: Normal";
 
-  modal ? (modal.style.display = "flex") : startQuizSession(quiz, "device");
+  if (modal) {
+    modal.style.display = "flex";
+  } else {
+    startQuizSession(pendingQuizForMode, "device");
+  }
 }
 
 function syncSliderFromInput(val) {
   const slider = document.getElementById("mode-item-range-slider");
+  if (!slider) return;
   let num = parseInt(val, 10);
   const max = parseInt(slider.max, 10);
   if (isNaN(num) || num < 1) num = 1;
@@ -1072,7 +1223,7 @@ function selectQuizMode(mode) {
   const input = document.getElementById("mode-item-count-input");
   let limit = targetQuiz ? targetQuiz.questions.length : 1;
 
-  if (input) {
+  if (input && targetQuiz) {
     const parsed = parseInt(input.value, 10);
     if (!isNaN(parsed) && parsed >= 1 && parsed <= targetQuiz.questions.length) {
       limit = parsed;
@@ -1111,13 +1262,29 @@ function startQuizSession(quiz, mode = "device") {
   visitedQuestions.clear();
   userAnswers = {};
 
-  document.getElementById("quiz-deck-view").style.display = "none";
-  document.getElementById("quiz-result-summary").style.display = "none";
-  document.getElementById("quiz-active-runner").style.display = "block";
+  // 🔗 RESOLVE ACCENT: Check deck accent first, then subject map
+  const activeColor = getSubjectColor(quiz.subject || "General", quiz.colorAccent);
+  
+  // Apply globally to documentElement, body, and runner
+  document.documentElement.style.setProperty("--subj-accent", activeColor);
+  document.body.style.setProperty("--subj-accent", activeColor);
+
+  const runnerEl = document.getElementById("quiz-active-runner");
+  if (runnerEl) {
+    runnerEl.style.setProperty("--subj-accent", activeColor);
+  }
+
+  const deckView = document.getElementById("quiz-deck-view");
+  const resultSummary = document.getElementById("quiz-result-summary");
+  if (deckView) deckView.style.display = "none";
+  if (resultSummary) resultSummary.style.display = "none";
+  if (runnerEl) runnerEl.style.display = "block";
 
   const modeBadge = mode === "paper" ? " [Pen & Paper]" : "";
-  document.getElementById("active-quiz-title").innerText = quiz.title + modeBadge;
+  const titleEl = document.getElementById("active-quiz-title");
+  if (titleEl) titleEl.innerText = quiz.title + modeBadge;
 
+  window.scrollTo({ top: 0, behavior: "smooth" });
   renderActiveQuestion();
 }
 
@@ -1132,7 +1299,7 @@ function renderSegmentedProgressBar() {
     const step = document.createElement("div");
     step.className = "quiz-progress-step";
 
-    const hasAnswer = !!userAnswers[i];
+    const hasAnswer = userAnswers[i] !== undefined;
     const isVisited = visitedQuestions.has(i);
     const isCurrent = i === currentQuestionIdx;
 
@@ -1140,9 +1307,8 @@ function renderSegmentedProgressBar() {
       step.classList.add("is-answered");
       step.title = `Question ${i + 1}: Answered`;
     } else if (isVisited && !isCurrent) {
-      // Visited and left without answering -> highlight red
       step.classList.add("is-skipped");
-      step.title = `Question ${i + 1}: Skipped (No answer)`;
+      step.title = `Question ${i + 1}: Skipped`;
     } else {
       step.title = `Question ${i + 1}`;
     }
@@ -1161,83 +1327,123 @@ function renderSegmentedProgressBar() {
 }
 
 function renderActiveQuestion() {
-  const q = activeQuizInstance.questions[currentQuestionIdx];
+  if (!activeQuizInstance || !activeQuizInstance.questions) return;
+
   const total = activeQuizInstance.questions.length;
+  const q = activeQuizInstance.questions[currentQuestionIdx];
+  if (!q) return;
 
   visitedQuestions.add(currentQuestionIdx);
-  document.getElementById("active-progress").innerText = `Question ${currentQuestionIdx + 1} of ${total}`;
+
+  // 0. Resolve Subject / Deck Accent Color
+  const activeColor = getSubjectColor(
+    activeQuizInstance.subject || "General",
+    activeQuizInstance.colorAccent
+  );
+
+  // 1. Update Header & Matrix Counters
+  const counterLabel = document.getElementById("q-counter-label");
+  if (counterLabel) counterLabel.innerText = `Question ${currentQuestionIdx + 1} of ${total}`;
+
+  const navCounter = document.getElementById("runner-matrix-counter");
+  if (navCounter) navCounter.innerText = `${currentQuestionIdx + 1} / ${total}`;
+
+  // 2. Update Question Text (Clean numbering)
+  const qTextEl = document.getElementById("quiz-question-text");
+  if (qTextEl) {
+    const rawPrompt = String(q.question || "").replace(/^\d+[\.\)]\s*/, "");
+    qTextEl.innerText = `${currentQuestionIdx + 1}. ${rawPrompt}`;
+  }
+
+  // 3. Hide rationale callout when moving between questions
+  const expBox = document.getElementById("active-explanation");
+  if (expBox) expBox.style.display = "none";
+
+  // 4. Render Pill Option Rows (A., B., C., D.) with Theme Colors
+  const container = document.getElementById("quiz-options-container");
+  if (container) {
+    container.innerHTML = "";
+
+    (q.options || []).forEach((opt, optIdx) => {
+      const optLetter = (opt.letter || String.fromCharCode(97 + optIdx)).toLowerCase();
+      const optText = typeof opt === "string" ? opt : (opt.text || "");
+      const isSelected = userAnswers[currentQuestionIdx] === optLetter;
+
+      const optionRow = document.createElement("div");
+      optionRow.className = "quiz-option-pill" + (isSelected ? " selected" : "");
+
+      // Apply dynamic colors directly so theme overrides static fallbacks
+      if (isSelected) {
+        optionRow.style.setProperty("border-color", activeColor, "important");
+        optionRow.style.setProperty(
+          "background-color",
+          `color-mix(in srgb, ${activeColor} 8%, #ffffff)`,
+          "important"
+        );
+      }
+
+      optionRow.innerHTML = `
+        <span class="option-letter-circle" style="color: ${activeColor} !important;">${optLetter.toUpperCase()}.</span>
+        <span class="option-text-body">${escapeHtml(optText)}</span>
+      `;
+
+      optionRow.onclick = () => {
+        userAnswers[currentQuestionIdx] = optLetter;
+        renderActiveQuestion();
+      };
+
+      container.appendChild(optionRow);
+    });
+  }
+
+  // 5. Update Segmented Progress Bar
   renderSegmentedProgressBar();
-  
-  document.getElementById("active-q-text").innerText = `${q.id}. ${q.question}`;
 
-  const optionsBox = document.getElementById("active-options-list");
-  optionsBox.innerHTML = "";
+  // 6. Update Prev & Anchored Next Buttons
+  const prevBtn = document.getElementById("btn-runner-prev");
+  if (prevBtn) prevBtn.disabled = currentQuestionIdx === 0;
 
-  q.options.forEach((opt) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "option-select-btn";
+  const nextBtn = document.getElementById("btn-runner-next");
+  if (nextBtn) {
+    // Force the dynamic theme color onto the anchored Next button
+    nextBtn.style.setProperty("background-color", activeColor, "important");
+    nextBtn.style.setProperty("border-color", activeColor, "important");
+    nextBtn.style.setProperty(
+      "box-shadow",
+      `0 4px 12px color-mix(in srgb, ${activeColor} 30%, transparent)`,
+      "important"
+    );
 
-    if (currentQuizMode === "paper") {
-      btn.classList.add("paper-mode");
-      btn.innerHTML = `<strong>${opt.letter.toUpperCase()}.</strong> <span>${opt.text}</span>`;
+    if (currentQuestionIdx === total - 1) {
+      nextBtn.innerText = "Submit Quiz ✓";
+      nextBtn.onclick = () => submitQuizAttempt();
     } else {
-      if (userAnswers[currentQuestionIdx] === opt.letter) btn.classList.add("selected");
-      btn.innerHTML = `<strong>${opt.letter.toUpperCase()}.</strong> <span>${opt.text}</span>`;
-      btn.onclick = () => selectOption(opt.letter);
-    }
-    optionsBox.appendChild(btn);
-  });
-
-  document.getElementById("btn-prev-q").style.visibility = currentQuestionIdx === 0 ? "hidden" : "visible";
-  const isLast = currentQuestionIdx === total - 1;
-  document.getElementById("btn-next-q").style.display = isLast ? "none" : "inline-block";
-  
-  const finishBtn = document.getElementById("btn-finish-q");
-  if (finishBtn) {
-    finishBtn.style.display = isLast ? "inline-block" : "none";
-    if (currentQuizMode === "paper") {
-      finishBtn.innerText = "Log Mistakes & Finish";
-      finishBtn.onclick = () => openPaperScoreModal();
-    } else {
-      finishBtn.innerText = "Submit Quiz";
-      finishBtn.onclick = () => submitQuizAttempt();
+      nextBtn.innerText = "Next →";
+      nextBtn.onclick = () => changeQuestion(1);
     }
   }
-  
-  const expBox = document.getElementById("active-explanation");
-  expBox.style.display = "none";
-  expBox.innerText = "";
+
+  // 7. Update Flag Button UI
   updateFlagButtonUI();
 }
 
-function selectOption(letter) {
-  userAnswers[currentQuestionIdx] = letter;
-  renderActiveQuestion();
-  renderSegmentedProgressBar();
-}
-
 function changeQuestion(step) {
-  currentQuestionIdx += step;
-  renderActiveQuestion();
-}
-
-function checkCurrentAnswer() {
-  const q = activeQuizInstance.questions[currentQuestionIdx];
-  const expBox = document.getElementById("active-explanation");
-  let html = "";
-
-  if (q.answer) html += `<strong>Correct Answer:</strong> Option ${q.answer.toUpperCase()}<br/>`;
-  if (q.explanation) html += `<strong>Rationale:</strong> ${q.explanation}`;
-  if (!q.answer) html += `<em>No key/rationale provided for this item.</em>`;
-
-  expBox.innerHTML = html;
-  expBox.style.display = "block";
+  if (!activeQuizInstance || !activeQuizInstance.questions) return;
+  const newIdx = currentQuestionIdx + step;
+  if (newIdx >= 0 && newIdx < activeQuizInstance.questions.length) {
+    currentQuestionIdx = newIdx;
+    renderActiveQuestion();
+  }
 }
 
 function toggleCurrentFlag() {
-  const idx = parseInt(currentQuestionIdx, 10);
-  flaggedQuestions.has(idx) ? flaggedQuestions.delete(idx) : flaggedQuestions.add(idx);
+  if (!flaggedQuestions) flaggedQuestions = new Set();
+  const idx = Number(currentQuestionIdx);
+  if (flaggedQuestions.has(idx)) {
+    flaggedQuestions.delete(idx);
+  } else {
+    flaggedQuestions.add(idx);
+  }
   updateFlagButtonUI();
 }
 
@@ -1247,11 +1453,57 @@ function updateFlagButtonUI() {
   const label = document.getElementById("flag-label");
   if (!btn) return;
 
-  const idx = parseInt(currentQuestionIdx, 10);
-  const isFlagged = flaggedQuestions.has(idx);
+  const isFlagged = flaggedQuestions.has(Number(currentQuestionIdx));
   btn.classList.toggle("is-flagged", isFlagged);
   if (icon) icon.innerText = isFlagged ? "🚩" : "🏳️";
   if (label) label.innerText = isFlagged ? "Flagged" : "Flag";
+}
+
+function toggleQuestionMatrix() {
+  const drawer = document.getElementById("quiz-matrix-drawer");
+  const overlay = document.getElementById("quiz-matrix-overlay");
+  if (!drawer || !overlay) return;
+
+  const isOpen = drawer.classList.contains("open");
+  if (isOpen) {
+    closeQuestionMatrix();
+  } else {
+    buildMatrixGrid();
+    drawer.classList.add("open");
+    overlay.classList.add("open");
+  }
+}
+
+function closeQuestionMatrix() {
+  const drawer = document.getElementById("quiz-matrix-drawer");
+  const overlay = document.getElementById("quiz-matrix-overlay");
+  if (drawer) drawer.classList.remove("open");
+  if (overlay) overlay.classList.remove("open");
+}
+
+function buildMatrixGrid() {
+  const grid = document.getElementById("drawer-matrix-grid");
+  if (!grid || !activeQuizInstance || !activeQuizInstance.questions) return;
+
+  grid.innerHTML = "";
+  activeQuizInstance.questions.forEach((_, idx) => {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "matrix-node";
+    node.innerText = idx + 1;
+
+    if (idx === currentQuestionIdx) node.classList.add("current");
+    if (userAnswers[idx] !== undefined) node.classList.add("answered");
+    if (flaggedQuestions && flaggedQuestions.has(idx)) node.classList.add("flagged");
+
+    node.onclick = () => {
+      currentQuestionIdx = idx;
+      renderActiveQuestion();
+      closeQuestionMatrix();
+    };
+
+    grid.appendChild(node);
+  });
 }
 
 function exitQuizRunner() {
@@ -1264,18 +1516,24 @@ function exitQuizRunner() {
 
 function finishAndReturnToLibrary() {
   document.querySelector(".app-container")?.classList.remove("quiz-focus-mode");
-  document.getElementById("quiz-active-runner").style.display = "none";
-  document.getElementById("quiz-result-summary").style.display = "none";
-  document.getElementById("quiz-deck-view").style.display = "block";
+  document.documentElement.style.removeProperty("--subj-accent");
+
+  const runner = document.getElementById("quiz-active-runner");
+  const summary = document.getElementById("quiz-result-summary");
+  const deckView = document.getElementById("quiz-deck-view");
+
+  if (runner) runner.style.display = "none";
+  if (summary) summary.style.display = "none";
+  if (deckView) deckView.style.display = "block";
+
+  closeQuestionMatrix();
   activeQuizInstance = null;
   updateDashboardMetrics();
 }
 
-// On-Device Attempt Submission
 async function submitQuizAttempt() {
   if (!activeQuizInstance || !activeQuizInstance.questions) return;
-  
-  // If in pen & paper mode, redirect directly to mistake logging
+
   if (currentQuizMode === "paper") {
     openPaperScoreModal();
     return;
@@ -1285,22 +1543,19 @@ async function submitQuizAttempt() {
   let score = 0;
   const reviewItems = [];
   const flaggedArray = Array.from(flaggedQuestions).map((n) => Number(n));
-
   const mistakeBank = getMistakeBank();
 
   activeQuizInstance.questions.forEach((q, idx) => {
     const userChoice = userAnswers[idx];
-    const isCorrect = userChoice && q.answer && userChoice.toLowerCase() === q.answer.toLowerCase();
+    const isCorrect = userChoice && q.answer && String(userChoice).toLowerCase() === String(q.answer).toLowerCase();
     const isFlagged = flaggedQuestions.has(idx);
 
     if (isCorrect) {
       score++;
-      // Option B Graduation Rule: If answered correctly inside the Weak Spots Drill, mark mastered
       if (activeQuizInstance.isWeakSpots && q.bankKey && mistakeBank[q.bankKey]) {
         mistakeBank[q.bankKey].is_mastered = true;
       }
     } else {
-      // Missed: Record/increment fail counter
       recordQuestionMistake(q, activeQuizInstance.id);
     }
 
@@ -1347,6 +1602,7 @@ async function submitQuizAttempt() {
   updateSummaryFilterPillCounts(reviewItems);
   filterSummaryReview("all");
 
+  closeQuestionMatrix();
   const runner = document.getElementById("quiz-active-runner");
   const summary = document.getElementById("quiz-result-summary");
   if (runner) runner.style.display = "none";
@@ -1362,7 +1618,7 @@ async function submitQuizAttempt() {
 }
 
 /* --------------------------------------------------------------------------
-   8. PEN & PAPER MODE HANDLERS
+   9. PEN & PAPER MODE HANDLERS
    -------------------------------------------------------------------------- */
 function openPaperScoreModal() {
   if (!activeQuizInstance) return;
@@ -1472,7 +1728,7 @@ function skipPaperScoreLogging() {
 }
 
 /* --------------------------------------------------------------------------
-   9. RESULT BREAKDOWN & ATTEMPT REVIEW
+   10. RESULT BREAKDOWN & HISTORICAL ATTEMPT REVIEW
    -------------------------------------------------------------------------- */
 function updateSummaryFilterPillCounts(items) {
   const setEl = (id, val) => {
@@ -1506,15 +1762,13 @@ function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
   const targetQ = activeQuizInstance.questions[questionOriginalIdx];
   if (!targetQ) return;
 
-  const oldAnswerKey = targetQ.answer;
   targetQ.answer = newAnswerKey.toLowerCase();
 
-  // 1. Persist the updated key to the permanent library in localStorage for future sessions
   try {
     const storedQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]");
     const targetDeck = storedQuizzes.find((d) => d.id === activeQuizInstance.id);
     if (targetDeck && targetDeck.questions) {
-      const deckQ = targetDeck.questions.find((q, idx) => (q.id === targetQ.id || idx === questionOriginalIdx));
+      const deckQ = targetDeck.questions.find((q, idx) => q.id === targetQ.id || idx === questionOriginalIdx);
       if (deckQ) {
         deckQ.answer = targetQ.answer;
         localStorage.setItem("quizzes", JSON.stringify(storedQuizzes));
@@ -1524,7 +1778,6 @@ function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
     console.error("Failed to update permanent quiz key:", err);
   }
 
-  // 2. Recalculate the active review items array and score
   let newScore = 0;
   const total = activeQuizInstance.questions.length;
 
@@ -1533,7 +1786,7 @@ function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
       item.answer = targetQ.answer;
     }
     const userChoice = item.chosenAnswer;
-    const isCorrect = userChoice && item.answer && userChoice.toLowerCase() === item.answer.toLowerCase();
+    const isCorrect = userChoice && item.answer && String(userChoice).toLowerCase() === String(item.answer).toLowerCase();
     item.isCorrect = !!isCorrect;
     if (item.isCorrect) newScore++;
   });
@@ -1542,7 +1795,6 @@ function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
   const scoreDisplay = document.getElementById("result-score-display") || document.getElementById("summary-score-text");
   if (scoreDisplay) scoreDisplay.innerText = `${newScore} / ${total} (${pct}%)`;
 
-  // 3. Update the logged attempt record in quiz_records
   try {
     const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
     if (localRecords.length > 0) {
@@ -1561,7 +1813,6 @@ function updateQuestionAnswerKey(questionOriginalIdx, newAnswerKey) {
     console.error("Failed to update attempt record with new key:", err);
   }
 
-  // 4. Refresh review counts and re-render the view
   updateSummaryFilterPillCounts(currentSummaryReviewItems);
   const activePill = document.querySelector(".summary-filter-pills .summary-pill.active");
   const currentFilter = activePill ? (activePill.getAttribute("onclick").match(/'([^']+)'/) || [])[1] || "all" : "all";
@@ -1598,7 +1849,7 @@ function renderSummaryReviewItems(items) {
     const optionsHtml = q.options.map((opt) => {
       let extraClass = "";
       let labelTag = "";
-      if (q.chosenAnswer && opt.letter.toLowerCase() === q.chosenAnswer.toLowerCase()) {
+      if (q.chosenAnswer && opt.letter.toLowerCase() === String(q.chosenAnswer).toLowerCase()) {
         extraClass = q.isCorrect ? "is-answer" : "user-wrong";
         labelTag = q.isCorrect ? " <strong>(Your Answer - Correct)</strong>" : " <strong>(Your Answer)</strong>";
       } else if (q.answer && opt.letter.toLowerCase() === q.answer.toLowerCase()) {
@@ -1634,7 +1885,6 @@ function renderSummaryReviewItems(items) {
   });
 }
 
-// Full Historical Review Screen
 function openFullAttemptReview(recordId) {
   const records = JSON.parse(localStorage.getItem("quiz_records") || "[]");
   const record = records.find((r) => r.id === recordId);
@@ -1664,7 +1914,7 @@ function openFullAttemptReview(recordId) {
         : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
       isCorrect = !isMistake;
     } else {
-      const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
+      const userChoice = record.userAnswers && record.userAnswers[idx] ? String(record.userAnswers[idx]).toLowerCase() : null;
       isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
     }
     isCorrect ? correctCount++ : mistakesCount++;
@@ -1712,7 +1962,7 @@ function renderAttemptReviewCards() {
         : (record.userAnswers && record.userAnswers[idx] === "__WRONG__");
       isCorrect = !isMistake;
     } else {
-      const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
+      const userChoice = record.userAnswers && record.userAnswers[idx] ? String(record.userAnswers[idx]).toLowerCase() : null;
       isCorrect = userChoice && q.answer && userChoice === q.answer.toLowerCase();
     }
 
@@ -1737,7 +1987,7 @@ function renderAttemptReviewCards() {
         </div>`;
       }).join("");
     } else {
-      const userChoice = record.userAnswers && record.userAnswers[idx] ? record.userAnswers[idx].toLowerCase() : null;
+      const userChoice = record.userAnswers && record.userAnswers[idx] ? String(record.userAnswers[idx]).toLowerCase() : null;
       optionsHtml = q.options.map((opt) => {
         let extraClass = "";
         let tag = "";
@@ -1777,38 +2027,26 @@ function renderAttemptReviewCards() {
 }
 
 /* --------------------------------------------------------------------------
-   10. RECORDS TABLE, SORTING & ROW DELETION
+   11. RECORDS TABLE, STATISTICS, STREAKS & DELETION
    -------------------------------------------------------------------------- */
-
 function calculateRecordsStatistics(records) {
   const safeRecords = Array.isArray(records) ? records : [];
   const storedDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
 
-  // Map deck titles and IDs to their corresponding subject category
   const subjectMap = {};
   storedDecks.forEach((d) => {
     if (d.title) subjectMap[d.title.trim().toLowerCase()] = d.subject || "General";
     if (d.id) subjectMap[d.id] = d.subject || "General";
   });
 
-  /* ---------------------------------------------------------
-     FEATURE 1: Subject-Wise Mastery Breakdown
-     --------------------------------------------------------- */
-  const subjectScores = {}; // { [subject]: { totalScore: 0, totalQuestions: 0 } }
-  let totalSolvedItemsAllTime = 0;
-
-  /* ---------------------------------------------------------
-     FEATURE 4: Flagged Item Hit Rate
-     --------------------------------------------------------- */
+  const subjectScores = {};
   let totalFlaggedAnswered = 0;
   let totalFlaggedCorrect = 0;
 
   safeRecords.forEach((rec) => {
-    // Determine subject for this record
     const titleKey = (rec.title || "").replace(/\s*\(pen & paper\)/i, "").trim().toLowerCase();
     const resolvedSubject = subjectMap[titleKey] || "General";
 
-    // Parse score: "18 / 20"
     let scoreNum = 0;
     let totalNum = 0;
     if (rec.score && typeof rec.score === "string") {
@@ -1823,7 +2061,6 @@ function calculateRecordsStatistics(records) {
     }
 
     if (totalNum > 0) {
-      totalSolvedItemsAllTime += totalNum;
       if (!subjectScores[resolvedSubject]) {
         subjectScores[resolvedSubject] = { totalScore: 0, totalQuestions: 0 };
       }
@@ -1831,7 +2068,6 @@ function calculateRecordsStatistics(records) {
       subjectScores[resolvedSubject].totalQuestions += totalNum;
     }
 
-    // Flagged Accuracy Logic
     const flaggedIdxs = rec.flaggedIndices || rec.flagged_indices || [];
     const mistakeIdxs = new Set(rec.mistakenIndices || rec.mistaken_indices || []);
 
@@ -1843,7 +2079,6 @@ function calculateRecordsStatistics(records) {
     });
   });
 
-  // Render Feature 1: Top Subjects UI
   const bestSubjEl = document.getElementById("stat-best-subject-val");
   if (bestSubjEl) {
     const subjectsList = Object.keys(subjectScores).map((s) => {
@@ -1853,67 +2088,66 @@ function calculateRecordsStatistics(records) {
     });
 
     subjectsList.sort((a, b) => b.percentage - a.percentage);
-
-    if (subjectsList.length === 0) {
-      bestSubjEl.innerText = "--";
-    } else {
-      bestSubjEl.innerText = `${subjectsList[0].subject} (${subjectsList[0].percentage}%)`;
-    }
+    bestSubjEl.innerText = subjectsList.length === 0 ? "--" : `${subjectsList[0].subject} (${subjectsList[0].percentage}%)`;
   }
 
-  // Render Feature 4: Flagged Hit Rate UI
   const flagRateEl = document.getElementById("stat-flagged-rate-val");
   if (flagRateEl) {
-    if (totalFlaggedAnswered === 0) {
-      flagRateEl.innerText = "0%";
-    } else {
-      const flagPct = Math.round((totalFlaggedCorrect / totalFlaggedAnswered) * 100);
-      flagRateEl.innerText = `${flagPct}%`;
-    }
+    const flagPct = totalFlaggedAnswered === 0 ? 0 : Math.round((totalFlaggedCorrect / totalFlaggedAnswered) * 100);
+    flagRateEl.innerText = `${flagPct}%`;
   }
 
-  /* ---------------------------------------------------------
-     FEATURE 5: Practice Consistency & Streak Calculation
-     --------------------------------------------------------- */
-  const uniqueDates = Array.from(new Set(safeRecords.map((r) => r.date).filter(Boolean)))
-    .map((d) => new Date(d))
-    .filter((d) => !isNaN(d.getTime()))
-    .sort((a, b) => b - a); // Newest to oldest
+  // Timezone-safe Practice Streak Calculation
+  const rawDateStrings = safeRecords
+    .map((r) => {
+      if (!r.date) return null;
+      const match = String(r.date).match(/^\d{4}-\d{2}-\d{2}/);
+      return match ? match[0] : null;
+    })
+    .filter(Boolean);
 
+  const uniqueDateStrings = Array.from(new Set(rawDateStrings)).sort((a, b) => b.localeCompare(a));
   let streak = 0;
-  if (uniqueDates.length > 0) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
-    const firstDate = new Date(uniqueDates[0]);
-    firstDate.setHours(0, 0, 0, 0);
+  if (uniqueDateStrings.length > 0) {
+    const now = new Date();
+    const formatYMD = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
 
-    const diffDaysFromToday = Math.round((today - firstDate) / (1000 * 60 * 60 * 24));
+    const todayStr = formatYMD(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = formatYMD(yesterday);
 
-    // Active if practiced today (0) or yesterday (1)
-    if (diffDaysFromToday === 0 || diffDaysFromToday === 1) {
+    const latestSessionDate = uniqueDateStrings[0];
+
+    if (latestSessionDate === todayStr || latestSessionDate === yesterdayStr) {
       streak = 1;
-      let checkDate = firstDate;
+      const [y, m, d] = latestSessionDate.split("-").map(Number);
+      let anchorDate = new Date(y, m - 1, d);
 
-      for (let i = 1; i < uniqueDates.length; i++) {
-        const nextDate = new Date(uniqueDates[i]);
-        nextDate.setHours(0, 0, 0, 0);
-        const dayDifference = Math.round((checkDate - nextDate) / (1000 * 60 * 60 * 24));
+      for (let i = 1; i < uniqueDateStrings.length; i++) {
+        const [ny, nm, nd] = uniqueDateStrings[i].split("-").map(Number);
+        const prevSessionDate = new Date(ny, nm - 1, nd);
+        const dayDifference = Math.round((anchorDate - prevSessionDate) / (1000 * 60 * 60 * 24));
 
         if (dayDifference === 1) {
           streak++;
-          checkDate = nextDate;
-        } else if (dayDifference > 1) {
+          anchorDate = prevSessionDate;
+        } else {
           break;
         }
       }
     }
   }
 
-  // Render Feature 5: Consistency UI
   const streakValEl = document.getElementById("stat-streak-val");
   if (streakValEl) {
-    streakValEl.innerText = streak === 1 ? `1 Day` : `${streak} Days`;
+    streakValEl.innerText = streak === 1 ? "1 Day" : `${streak} Days`;
   }
 }
 
@@ -2062,6 +2296,14 @@ async function executeDeleteRecord(recordId) {
   localStorage.setItem("quiz_records", JSON.stringify(records));
   currentRecordsCache = records;
 
+  if (currentUser) {
+    try {
+      await sb.from("quiz_records").delete().eq("id", recordId).eq("user_id", currentUser.id);
+    } catch (err) {
+      console.warn("Failed to delete record from cloud:", err);
+    }
+  }
+
   await renderRecordsTable();
   updateDashboardMetrics();
 }
@@ -2085,13 +2327,22 @@ async function clearAllRecords() {
   if (confirm("Are you sure you want to clear all quiz records on this device?")) {
     localStorage.removeItem("quiz_records");
     currentRecordsCache = [];
+
+    if (currentUser) {
+      try {
+        await sb.from("quiz_records").delete().eq("user_id", currentUser.id);
+      } catch (err) {
+        console.warn("Failed to clear cloud records:", err);
+      }
+    }
+
     await renderRecordsTable();
     updateDashboardMetrics();
   }
 }
 
 /* --------------------------------------------------------------------------
-   11. MANUAL QUIZ CREATOR & EDITOR
+   12. MANUAL QUIZ CREATOR & DECK EDITOR
    -------------------------------------------------------------------------- */
 function initManualCreator() {
   populateEditQuizDropdown();
@@ -2105,7 +2356,6 @@ function populateEditQuizDropdown() {
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
   dropdown.innerHTML = `<option value="">-- Choose a quiz to load --</option>`;
 
-  // Filter out soft-deleted / inactive decks
   stored
     .filter((quiz) => quiz.isActive !== false)
     .forEach((quiz) => {
@@ -2303,9 +2553,8 @@ async function saveManualQuiz(mode = "create") {
 }
 
 /* --------------------------------------------------------------------------
-   12. FILE UPLOAD & TEXT PARSING ENGINE
+   13. FILE UPLOAD & AI TEXT PARSING ENGINE
    -------------------------------------------------------------------------- */
-   
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -2333,11 +2582,9 @@ async function handleFileUpload(e) {
 function parseFormattedText(rawText) {
   if (!rawText || !rawText.trim()) return [];
 
-  // Strip markdown backslash-escapes (e.g. "1\." -> "1.")
   const cleanedText = rawText.replace(/\\([.\-\)])/g, "$1");
   const lines = cleanedText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
 
-  // 1. Separate questions block and answer key block
   let splitIndex = -1;
   const answerSectionHeaderRegex = /^(?:answer\s*keys?|answers?|solutions?|correct\s*answers?|rationales?)\b[\s\:\-\=]*$/i;
 
@@ -2354,9 +2601,7 @@ function parseFormattedText(rawText) {
   const questions = [];
   let curQ = null;
 
-  // Question regex: handles "1.", "1)", "Q1.", "Question 1:", "Item 1."
   const qStartRegex = /^(?:q(?:uestion)?\.?|item)?\s*\(?(\d+)\)?[\.\:\-\)]\s*(.*)/i;
-  // Inline answers/explanations
   const inlineAnsRegex = /^(?:correct\s*)?(?:answer|ans)\s*[\:\-\=]\s*\(?([a-e])\)?[\.\:\-\)]?\s*(.*)/i;
   const inlineExpRegex = /^(?:rationale|explanation|reason)\s*[\:\-\=]\s*(.*)/i;
 
@@ -2372,7 +2617,7 @@ function parseFormattedText(rawText) {
         question: qMatch[2] ? qMatch[2].trim() : "",
         options: [],
         answer: "",
-        explanation: ""
+        explanation: "",
       };
     } else if (inlineAnsMatch && curQ) {
       curQ.answer = inlineAnsMatch[1].toLowerCase();
@@ -2382,7 +2627,6 @@ function parseFormattedText(rawText) {
     } else if (inlineExpMatch && curQ) {
       curQ.explanation = inlineExpMatch[1].trim();
     } else if (curQ) {
-      // Check if line contains inline options (e.g. "a. Cat b. Dog c. Bird d. Fish")
       const inlineMatches = [...line.matchAll(/(?:^|\s+)(?:option\s*)?\(?([a-e])\)?[\.\:\-\)\]]\s*([^\s].*?)(?=(?:\s+(?:option\s*)?\(?[a-e]\)?[\.\:\-\)\]])|$)/gi)];
 
       if (inlineMatches.length > 0 && curQ.options.length === 0) {
@@ -2390,23 +2634,20 @@ function parseFormattedText(rawText) {
           if (curQ.options.length < 5) {
             curQ.options.push({
               letter: m[1].toLowerCase(),
-              text: m[2].trim()
+              text: m[2].trim(),
             });
           }
         });
       } else {
-        // Fallback for single options on their own line: "a. Some text"
         const singleOptMatch = line.match(/^(?:option\s*)?\(?([a-e])\)?[\.\:\-\)\]]\s*(.+)/i);
         if (singleOptMatch && curQ.options.length < 5) {
           curQ.options.push({
             letter: singleOptMatch[1].toLowerCase(),
-            text: singleOptMatch[2].trim()
+            text: singleOptMatch[2].trim(),
           });
         } else if (curQ.options.length === 0) {
-          // Wrapped question prompt continuation
           curQ.question = curQ.question ? `${curQ.question} ${line}` : line;
         } else {
-          // Wrapped last option continuation
           const lastOpt = curQ.options[curQ.options.length - 1];
           lastOpt.text += " " + line;
         }
@@ -2415,7 +2656,6 @@ function parseFormattedText(rawText) {
   }
   if (curQ) questions.push(curQ);
 
-  // 2. Parse bottom answer key section
   for (let line of answerLines) {
     const ansMatch = line.match(/^(?:q(?:uestion)?\.?|item)?\s*\(?(\d+)\)?[\.\:\-\)]\s*\(?([a-e])\)?[\.\:\-\)]?\s*(.*)/i);
     if (ansMatch) {
@@ -2430,10 +2670,9 @@ function parseFormattedText(rawText) {
     }
   }
 
-  // 3. Normalize IDs sequentially
   return questions.map((q, index) => ({
     ...q,
-    id: index + 1
+    id: index + 1,
   }));
 }
 
@@ -2456,21 +2695,18 @@ async function processAndLoadQuiz() {
   const title = document.getElementById("quiz-title-input").value.trim();
   const subject = (document.getElementById("quiz-subject-input")?.value || "").trim();
 
-  // 1. Enforce Quiz Title requirement
   if (!title) {
     showStatus("upload-status", "Please enter a Quiz Title before adding.", "error");
     document.getElementById("quiz-title-input")?.focus();
     return;
   }
 
-  // 2. Enforce Subject / Category requirement
   if (!subject) {
     showStatus("upload-status", "Please enter a Subject / Category before adding.", "error");
     document.getElementById("quiz-subject-input")?.focus();
     return;
   }
 
-  // 3. Enforce Question Content requirement
   if (!text) {
     showStatus("upload-status", "Please paste content or upload a valid quiz file.", "error");
     document.getElementById("raw-paste")?.focus();
@@ -2514,7 +2750,6 @@ function populateUploadSubjectDatalist() {
   if (!datalist) return;
 
   const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  // Collect non-empty unique subjects from active decks
   const uniqueSubjects = Array.from(
     new Set(
       stored
@@ -2539,13 +2774,11 @@ function clearUploadForm() {
 }
 
 /* --------------------------------------------------------------------------
-   13. BACKUP IMPORT & EXPORT (OFFLINE JSON)
+   14. OFFLINE BACKUP (JSON IMPORT/EXPORT) & PDF PRINT EXPORT
    -------------------------------------------------------------------------- */
-
 function exportDataBackup() {
   try {
-    const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]")
-    .filter((deck) => deck.isActive !== false);
+    const rawQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]").filter((deck) => deck.isActive !== false);
     const rawRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
     const rawMistakeBank = JSON.parse(localStorage.getItem("quiz_mistake_bank") || "{}");
 
@@ -2553,7 +2786,6 @@ function exportDataBackup() {
     const formattedDate = now.toISOString().split("T")[0];
     const formattedTime = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-    // Clean, readable metadata block at the top of the file
     const backupMetadata = {
       backup_summary: {
         app_name: "QuizHub",
@@ -2564,28 +2796,32 @@ function exportDataBackup() {
         total_quizzes: rawQuizzes.length,
         total_attempt_records: rawRecords.length,
         total_tracked_mistakes: Object.keys(rawMistakeBank).length,
-        user_account: currentUser ? currentUser.email || currentUser.id : "Local / Guest"
-      }
+        user_account: currentUser ? currentUser.email || currentUser.id : "Local / Guest",
+      },
     };
 
     const sanitizedQuizzes = rawQuizzes.map((deck, idx) => ({
       id: String(deck.id || `quiz_${Date.now()}_${idx}`),
       title: String(deck.title || "Untitled Assessment").trim(),
       subject: String(deck.subject || "General").trim(),
-	  colorAccent: deck.colorAccent || "#2563eb",
+      colorAccent: deck.colorAccent || "#2563eb",
       sortOrder: Number.isInteger(deck.sortOrder) ? deck.sortOrder : idx,
       uploadedAt: deck.uploadedAt || formattedDate,
       totalQuestions: Number(deck.totalQuestions) || (deck.questions ? deck.questions.length : 0),
-      questions: Array.isArray(deck.questions) ? deck.questions.map((q, qIdx) => ({
-        id: Number(q.id) || (qIdx + 1),
-        question: String(q.question || "").trim(),
-        options: Array.isArray(q.options) ? q.options.map((opt) => ({
-          letter: String(opt.letter || "").toLowerCase().trim(),
-          text: String(opt.text || "").trim(),
-        })) : [],
-        answer: String(q.answer || "").toLowerCase().trim(),
-        explanation: String(q.explanation || q.rationale || "").trim(),
-      })) : [],
+      questions: Array.isArray(deck.questions)
+        ? deck.questions.map((q, qIdx) => ({
+            id: Number(q.id) || qIdx + 1,
+            question: String(q.question || "").trim(),
+            options: Array.isArray(q.options)
+              ? q.options.map((opt) => ({
+                  letter: String(opt.letter || "").toLowerCase().trim(),
+                  text: String(opt.text || "").trim(),
+                }))
+              : [],
+            answer: String(q.answer || "").toLowerCase().trim(),
+            explanation: String(q.explanation || q.rationale || "").trim(),
+          }))
+        : [],
     }));
 
     const sanitizedRecords = rawRecords.map((rec, idx) => {
@@ -2599,21 +2835,20 @@ function exportDataBackup() {
         score: String(rec.score || "0 / 0"),
         percentage: String(rec.percentage || "0%"),
         mode: rec.mode === "paper" ? "paper" : "device",
-        mistakesCount: Number.isInteger(rec.mistakesCount) ? rec.mistakesCount : (Number(rec.mistakes_count) || rawMistakes.length),
+        mistakesCount: Number.isInteger(rec.mistakesCount) ? rec.mistakesCount : Number(rec.mistakes_count) || rawMistakes.length,
         mistakenIndices: Array.from(new Set(rawMistakes.map((n) => Number(n)))),
         flaggedIndices: Array.from(new Set(rawFlags.map((n) => Number(n)))),
         questions: Array.isArray(rec.questions) ? rec.questions : [],
-        userAnswers: typeof rec.userAnswers === "object" && rec.userAnswers !== null ? rec.userAnswers : (rec.user_answers || {}),
+        userAnswers: typeof rec.userAnswers === "object" && rec.userAnswers !== null ? rec.userAnswers : rec.user_answers || {},
       };
     });
 
-    // Assemble the complete payload with metadata at the very top
     const backupEnvelope = {
       ...backupMetadata,
       quizzes: sanitizedQuizzes,
       quiz_records: sanitizedRecords,
       quiz_mistake_bank: rawMistakeBank,
-	  quiz_subject_colors: getSubjectColorsMap()
+      quiz_subject_colors: getSubjectColorsMap(),
     };
 
     const blob = new Blob([JSON.stringify(backupEnvelope, null, 2)], { type: "application/json" });
@@ -2658,14 +2893,18 @@ function handleBackupFileSelect(event) {
 
       const rawQuizzes = Array.isArray(importedData.quizzes)
         ? importedData.quizzes
-        : (Array.isArray(importedData) ? importedData : []);
+        : Array.isArray(importedData)
+        ? importedData
+        : [];
       const rawRecords = Array.isArray(importedData.quiz_records)
         ? importedData.quiz_records
-        : (Array.isArray(importedData.records) ? importedData.records : []);
-      const rawMistakes = (typeof importedData.quiz_mistake_bank === "object" && importedData.quiz_mistake_bank !== null)
+        : Array.isArray(importedData.records)
+        ? importedData.records
+        : [];
+      const rawMistakes = typeof importedData.quiz_mistake_bank === "object" && importedData.quiz_mistake_bank !== null
         ? importedData.quiz_mistake_bank
         : {};
-      const rawSubjectColors = (typeof importedData.quiz_subject_colors === "object" && importedData.quiz_subject_colors !== null)
+      const rawSubjectColors = typeof importedData.quiz_subject_colors === "object" && importedData.quiz_subject_colors !== null
         ? importedData.quiz_subject_colors
         : {};
 
@@ -2695,7 +2934,7 @@ function handleBackupFileSelect(event) {
           uploadedAt: d.uploadedAt || new Date().toISOString().split("T")[0],
           totalQuestions: d.totalQuestions || (d.questions ? d.questions.length : 0),
           questions: Array.isArray(d.questions) ? d.questions : [],
-          isActive: true
+          isActive: true,
         }));
 
       const cleanRecords = rawRecords.map((r, i) => {
@@ -2777,7 +3016,6 @@ function exportQuizDeckToPDF(quizId) {
   const stage = document.getElementById("quiz-pdf-export-stage");
   if (!stage) return;
 
-  // Build Questions HTML
   const questionsHtml = quiz.questions.map((q, idx) => {
     const qNum = idx + 1;
     const optionsHtml = (q.options || []).map((opt) => `
@@ -2795,7 +3033,6 @@ function exportQuizDeckToPDF(quizId) {
     `;
   }).join("");
 
-  // Build Answer Key & Rationales HTML
   const answersHtml = quiz.questions.map((q, idx) => {
     const qNum = idx + 1;
     const answerKey = (q.answer || "N/A").toUpperCase();
@@ -2809,7 +3046,6 @@ function exportQuizDeckToPDF(quizId) {
     `;
   }).join("");
 
-  // Construct complete print stage markup
   stage.innerHTML = `
     <div class="pdf-header">
       <div>
@@ -2824,12 +3060,10 @@ function exportQuizDeckToPDF(quizId) {
       </div>
     </div>
 
-    <!-- 2-Column Questions -->
     <div class="pdf-questions-grid">
       ${questionsHtml}
     </div>
 
-    <!-- Answer Key & Explanations on New Page -->
     <div class="pdf-answers-section">
       <div class="pdf-answers-header">Answer Key & Rationales</div>
       <div class="pdf-answers-grid">
@@ -2838,23 +3072,20 @@ function exportQuizDeckToPDF(quizId) {
     </div>
   `;
 
-  // Trigger system print dialogue configured to save as PDF
   const originalTitle = document.title;
   document.title = `${quiz.title.replace(/[\\/:*?"<>|]/g, "_")}_Assessment`;
-  
+
   window.print();
-  
-  // Cleanup after print dialogue closes
+
   setTimeout(() => {
     document.title = originalTitle;
     stage.innerHTML = "";
   }, 1000);
 }
-	
-/* --------------------------------------------------------------------------
-   14. MANUAL CLOUD SYNCHRONIZATION (SUPABASE)
-   -------------------------------------------------------------------------- */
 
+/* --------------------------------------------------------------------------
+   15. CLOUD SYNCHRONIZATION (SUPABASE PUSH & PULL)
+   -------------------------------------------------------------------------- */
 async function pushLocalDataToSupabase() {
   if (!currentUser) {
     openAuthModal(pushLocalDataToSupabase);
@@ -2905,12 +3136,11 @@ async function pushLocalDataToSupabase() {
       user_answers: r.userAnswers || {},
     }));
 
-    // Build per-subject color payload for Supabase
     const subjectColorsPayload = Object.keys(rawSubjectColors).map((subjectKey) => ({
       user_id: currentUser.id,
       subject: subjectKey.toLowerCase(),
       color_accent: rawSubjectColors[subjectKey],
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }));
 
     if (decksPayload.length > 0) {
@@ -2962,8 +3192,8 @@ async function pullCloudDataToLocalStorage() {
     const cloudColors = colorsRes.data || [];
 
     if (cloudDecks.length === 0 && cloudRecords.length === 0 && cloudColors.length === 0) {
-      typeof showToast === "function" 
-        ? showToast("No cloud backups found for your account.") 
+      typeof showToast === "function"
+        ? showToast("No cloud backups found for your account.")
         : alert("No cloud backups found for your account.");
       return;
     }
@@ -2993,7 +3223,6 @@ async function pullCloudDataToLocalStorage() {
       userAnswers: r.user_answers || {},
     }));
 
-    // 1. Merge Decks & Records
     const localDecks = JSON.parse(localStorage.getItem("quizzes") || "[]");
     const localRecords = JSON.parse(localStorage.getItem("quiz_records") || "[]");
 
@@ -3005,7 +3234,6 @@ async function pullCloudDataToLocalStorage() {
     localRecords.forEach((r) => recordMap.set(r.id, r));
     normalizedRecords.forEach((r) => recordMap.set(r.id, r));
 
-    // 2. Merge Subject Colors
     const localSubjectColors = JSON.parse(localStorage.getItem("quiz_subject_colors") || "{}");
     cloudColors.forEach((entry) => {
       if (entry.subject && entry.color_accent) {
@@ -3013,180 +3241,21 @@ async function pullCloudDataToLocalStorage() {
       }
     });
 
-    // 3. Commit merged data to LocalStorage
     localStorage.setItem("quizzes", JSON.stringify(Array.from(deckMap.values())));
     localStorage.setItem("quiz_records", JSON.stringify(Array.from(recordMap.values())));
     localStorage.setItem("quiz_subject_colors", JSON.stringify(localSubjectColors));
 
-    // 4. Re-render UI components
     await renderQuizList();
     await renderRecordsTable();
     if (typeof populateEditQuizDropdown === "function") populateEditQuizDropdown();
     updateDashboardMetrics();
 
-    // 5. User notification
     const pullSummary = `Successfully pulled from cloud!\n• Decks: ${normalizedDecks.length}\n• Attempt Records: ${normalizedRecords.length}\n• Subject Themes: ${cloudColors.length}`;
     typeof showToast === "function" ? showToast(pullSummary) : alert(pullSummary);
-
   } catch (err) {
     console.error("Cloud pull failed:", err);
-    typeof showToast === "function" 
-      ? showToast("Pull failed: " + err.message) 
+    typeof showToast === "function"
+      ? showToast("Pull failed: " + err.message)
       : alert("Pull failed: " + err.message);
   }
-}
-
-/* --------------------------------------------------------------------------
-   DEDICATED DECK COLOR MODAL CONTROLLERS
-   -------------------------------------------------------------------------- */
-function openDeckColorModal(quizId) {
-  // Close any open three-dot dropdowns
-  document.querySelectorAll(".card-menu-dropdown").forEach((d) => d.classList.remove("show"));
-
-  const target = (cachedDecks || []).find((q) => q.id === quizId);
-  if (!target) return;
-
-  document.getElementById("color-modal-quiz-id").value = quizId;
-  const currentColor = target.colorAccent || "#2563eb";
-
-  selectDeckColorModal(currentColor);
-
-  const modal = document.getElementById("deck-color-modal");
-  if (modal) modal.style.display = "flex";
-}
-
-function selectDeckColorModal(hexColor) {
-  const colorPicker = document.getElementById("deck-modal-custom-color");
-  const hexInput = document.getElementById("deck-modal-hex-input");
-
-  if (colorPicker) colorPicker.value = hexColor;
-  if (hexInput) hexInput.value = hexColor.toUpperCase();
-
-  document.querySelectorAll(".deck-modal-swatch").forEach((btn) => {
-    const btnColor = btn.style.getPropertyValue("--c").trim().toLowerCase();
-    btn.classList.toggle("active", btnColor === hexColor.toLowerCase());
-  });
-}
-
-function openSubjectColorModal(encodedSubjectName) {
-  const subjectName = decodeURIComponent(encodedSubjectName);
-  const currentColor = getSubjectColor(subjectName);
-
-  document.getElementById("subj-modal-subject-key").value = subjectName;
-  const nameDisplay = document.getElementById("subj-modal-name-display");
-  if (nameDisplay) nameDisplay.innerText = subjectName;
-
-  selectSubjectColor(currentColor);
-
-  const modal = document.getElementById("subject-color-modal");
-  if (modal) modal.style.display = "flex";
-}
-
-function selectSubjectColor(hexColor) {
-  const picker = document.getElementById("subj-modal-custom-picker");
-  const hexInput = document.getElementById("subj-modal-hex-input");
-
-  if (picker) picker.value = hexColor;
-  if (hexInput) hexInput.value = hexColor.toUpperCase();
-
-  document.querySelectorAll(".subj-swatch").forEach((btn) => {
-    const btnColor = btn.style.getPropertyValue("--c").trim().toLowerCase();
-    btn.classList.toggle("active", btnColor === hexColor.toLowerCase());
-  });
-}
-
-function syncSubjCustomColor(val) {
-  const hexInput = document.getElementById("subj-modal-hex-input");
-  if (hexInput) hexInput.value = val.toUpperCase();
-  selectSubjectColor(val);
-}
-
-function syncSubjHexInput(val) {
-  if (/^#[0-9A-F]{6}$/i.test(val)) {
-    const picker = document.getElementById("subj-modal-custom-picker");
-    if (picker) picker.value = val;
-    selectSubjectColor(val);
-  }
-}
-
-function closeSubjectColorModal() {
-  const modal = document.getElementById("subject-color-modal");
-  if (modal) modal.style.display = "none";
-}
-
-async function saveSubjectColor() {
-  const subjectName = document.getElementById("subj-modal-subject-key")?.value;
-  const newColor = document.getElementById("subj-modal-custom-picker")?.value || "#2563eb";
-  if (!subjectName) return;
-
-  const map = getSubjectColorsMap();
-  map[subjectName.trim().toLowerCase()] = newColor;
-  saveSubjectColorsMap(map);
-
-  closeSubjectColorModal();
-  await renderQuizList();
-}
-
-/* --------------------------------------------------------------------------
-   SUBJECT ACCENT COLOR PERSISTENCE
-   -------------------------------------------------------------------------- */
-function getSubjectColorsMap() {
-  try {
-    return JSON.parse(localStorage.getItem("quiz_subject_colors") || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveSubjectColorsMap(map) {
-  localStorage.setItem("quiz_subject_colors", JSON.stringify(map));
-}
-
-function getSubjectColor(subjectName) {
-  const map = getSubjectColorsMap();
-  const normalizedKey = (subjectName || "General").trim().toLowerCase();
-  return map[normalizedKey] || "#2563eb"; // Royal Blue default
-}
-
-function syncDeckModalCustomColor(val) {
-  const hexInput = document.getElementById("deck-modal-hex-input");
-  if (hexInput) hexInput.value = val.toUpperCase();
-  selectDeckColorModal(val);
-}
-
-function syncDeckModalHexInput(val) {
-  if (/^#[0-9A-F]{6}$/i.test(val)) {
-    const colorPicker = document.getElementById("deck-modal-custom-color");
-    if (colorPicker) colorPicker.value = val;
-    selectDeckColorModal(val);
-  }
-}
-
-function closeDeckColorModal() {
-  const modal = document.getElementById("deck-color-modal");
-  if (modal) modal.style.display = "none";
-}
-
-async function saveDeckColorModal() {
-  const quizId = document.getElementById("color-modal-quiz-id")?.value;
-  const chosenColor = document.getElementById("deck-modal-custom-color")?.value || "#2563eb";
-  if (!quizId) return;
-
-  // 1. Update localStorage
-  const stored = JSON.parse(localStorage.getItem("quizzes") || "[]");
-  const target = stored.find((q) => q.id === quizId);
-  if (target) {
-    target.colorAccent = chosenColor;
-    localStorage.setItem("quizzes", JSON.stringify(stored));
-  }
-
-  // 2. Update memory cache
-  const cachedTarget = (cachedDecks || []).find((q) => q.id === quizId);
-  if (cachedTarget) {
-    cachedTarget.colorAccent = chosenColor;
-  }
-
-  // 3. Close modal and re-render library
-  closeDeckColorModal();
-  await renderQuizList();
 }
